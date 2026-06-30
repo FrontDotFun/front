@@ -428,3 +428,100 @@ export function verifyTokenListing(tokenAddress: string): Promise<{
 }> {
   return request(`/tokens/${tokenAddress}/verify`);
 }
+
+// ── Market Data (Birdeye Proxy) ──
+
+export interface MarketToken {
+  address: string;
+  name: string;
+  symbol: string;
+  price: number;
+  priceChange24h: number;
+  volume24h: number;
+  marketCap: number;
+  liquidity: number;
+  logoURI: string | null;
+}
+
+export function getMarketTrending(): Promise<MarketToken[]> {
+  return request('/market/trending');
+}
+
+export function searchMarket(query: string): Promise<MarketToken[]> {
+  return request(`/market/search?q=${encodeURIComponent(query)}`);
+}
+
+export function getMarketToken(address: string): Promise<MarketToken & {
+  holders: number;
+  supply: number;
+  extensions: Record<string, string>;
+}> {
+  return request(`/market/token/${address}`);
+}
+
+export interface OHLCVCandle {
+  timestamp: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+export function getMarketPriceHistory(
+  address: string,
+  type?: string,
+  timeFrom?: number,
+  timeTo?: number,
+): Promise<OHLCVCandle[]> {
+  const params = new URLSearchParams();
+  if (type) params.set('type', type);
+  if (timeFrom) params.set('time_from', String(timeFrom));
+  if (timeTo) params.set('time_to', String(timeTo));
+  const q = params.toString() ? `?${params.toString()}` : '';
+  return request(`/market/token/${address}/price-history${q}`);
+}
+
+// ── Portfolio ──
+
+export interface PortfolioData {
+  wallet: {
+    address: string;
+    balanceLamports: string;
+    balanceSol: string;
+  };
+  positions: {
+    open: number;
+    totalCapitalLocked: string;
+    items: Array<{
+      id: number;
+      token: PositionTokenInfo;
+      leverage: number;
+      userCapital: string;
+      tier: string;
+      openedAt: string;
+    }>;
+  };
+  history: {
+    totalTrades: number;
+    totalPnlLamports: string;
+    totalProfitLamports: string;
+  };
+  locks: {
+    activeLocks: number;
+    totalLockedLamports: string;
+  };
+}
+
+export function getPortfolio(): Promise<PortfolioData> {
+  return request('/portfolio');
+}
+
+export function getPortfolioHistory(): Promise<{
+  trades: PositionInfo[];
+  total: number;
+  limit: number;
+  offset: number;
+}> {
+  return request('/portfolio/history');
+}
