@@ -9,7 +9,7 @@ RUN npm install -g pnpm@9
 WORKDIR /app
 
 # Copy package files and root tsconfig
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json tsconfig.json ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/database/package.json ./packages/database/
 COPY packages/solana/package.json ./packages/solana/
