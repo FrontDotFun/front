@@ -110,8 +110,8 @@ router.get('/token/:address', publicLimiter, async (req, res) => {
     const address = req.params.address;
 
     const [overviewRes, priceRes] = await Promise.all([
-      birdeyeFetch('/defi/token_overview', { address }),
-      birdeyeFetch('/defi/price', { address }),
+      birdeyeFetch('/defi/token_overview', { address: address as string }),
+      birdeyeFetch('/defi/price', { address: address as string }),
     ]);
 
     const overview = (overviewRes as any)?.data || {};
@@ -151,7 +151,7 @@ router.get('/token/:address/price-history', publicLimiter, async (req, res) => {
     const timeTo = (req.query.time_to as string) || String(now);
 
     const data = await birdeyeFetch('/defi/ohlcv', {
-      address,
+      address: address as string,
       type,
       time_from: timeFrom,
       time_to: timeTo,
@@ -183,7 +183,7 @@ router.get('/token/:address/trades', publicLimiter, async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
     const data = await birdeyeFetch('/defi/txs/token', {
-      address,
+      address: address as string,
       tx_type: 'swap',
       sort_type: 'desc',
       offset: '0',

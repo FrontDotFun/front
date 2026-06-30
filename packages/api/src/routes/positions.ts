@@ -12,10 +12,22 @@ import {
   calculatePositionSize,
   calculateFlatFee,
   getExitThresholdPercent,
+  calculatePnL,
+  calculateFullDistribution,
+  LAMPORTS_PER_SOL,
   type Tier,
 } from '@front-protocol/core';
-// Position close is handled inline for now.
-// In production with Jupiter swap execution, this would use BullMQ for async processing.
+import {
+  swapSolToToken,
+  swapTokenToSol,
+  getProtocolWallet,
+  loadBotWallet,
+  getSolBalance,
+  getTokenBalance,
+  transferSol,
+  getConnection,
+  SOL_MINT,
+} from '@front-protocol/solana';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { tradingLimiter } from '../middleware/rateLimit';
 import { sendSuccess, sendError, sendPaginated } from '../lib/response';
@@ -133,7 +145,67 @@ router.post(
       const preview = generatePositionPreview(userCapital, Number(leverage), tier);
       preview.tokenAddress = tokenAddress;
 
-      // Create position record
+      // ── On-chain execution ──────────────────────────
+      // 1. Load user's custodial wallet keypair
+      const user = await prisma.user.findFirst({
+        where: { walletAddress: wallet },
+        select: { encryptedKey: true },
+      });
+      if (!user) {
+        throw new ValidationError('User wallet not found');
+      }
+      const userKeypair = loadBotWallet(user.encryptedKey);
+
+      // 2. Check user has enough SOL balance
+      const userBalance = await getSolBalance(wallet);
+      if (userBalance < userCapital) {
+        throw new ValidationError(
+          `Insufficient SOL balance. You have ${Number(userBalance) / 1e9} SOL but need ${Number(userCapital) / 1e9} SOL`,
+        );
+      }
+
+      // 3. Transfer user's SOL collateral to protocol wallet
+      const protocolWallet = getProtocolWallet();
+      const transferSig = await transferSol(userKeypair, protocolWallet.publicKey, userCapital);
+      console.log(`[positions] User SOL transferred to protocol: ${transferSig}`);
+
+      // 4. Execute Jupiter swap — buy tokens with full position size (user + protocol capital)
+      const slippage = Number(slippageBps) || 150; // default 1.5% slippage
+      let openTx: string | undefined;
+      let tokensBought: bigint | undefined;
+      let entryPrice: number | undefined;
+
+      try {
+        const swapResult = await swapSolToToken(
+          positionSize, // full leveraged amount
+          tokenAddress,
+          slippage,
+          protocolWallet,
+        );
+
+        openTx = swapResult.txSignature;
+        tokensBought = swapResult.tokensReceived;
+
+        // Calculate entry price: SOL spent / tokens received
+        entryPrice = Number(positionSize) / Number(tokensBought);
+
+        console.log(
+          `[positions] Jupiter swap executed: ${openTx} | tokens=${tokensBought} | entryPrice=${entryPrice}`,
+        );
+      } catch (swapErr) {
+        // Swap failed — refund user's SOL
+        console.error(`[positions] Jupiter swap failed, refunding user:`, swapErr);
+        try {
+          await transferSol(protocolWallet, userKeypair.publicKey, userCapital);
+        } catch (refundErr) {
+          console.error(`[positions] CRITICAL: Refund failed!`, refundErr);
+        }
+        throw new ValidationError(
+          `Token swap failed: ${swapErr instanceof Error ? swapErr.message : 'Unknown error'}. Your SOL has been refunded.`,
+        );
+      }
+
+      // 5. Create position record with on-chain data
       const position = await prisma.position.create({
         data: {
           userWallet: wallet,
@@ -145,6 +217,9 @@ router.post(
           flatFee: flatFee,
           tier: tier,
           exitThreshold: exitThreshold,
+          entryPrice: entryPrice,
+          tokensBought: tokensBought,
+          openTx: openTx,
         },
         include: {
           token: {
@@ -173,12 +248,15 @@ router.post(
           userWallet: position.userWallet,
           token: position.token,
           status: position.status,
-          userCapital: position.userCapital,
-          protocolCapital: position.protocolCapital,
+          userCapital: position.userCapital.toString(),
+          protocolCapital: position.protocolCapital.toString(),
           leverage: position.leverage,
-          flatFee: position.flatFee,
+          flatFee: position.flatFee.toString(),
           tier: position.tier,
           exitThreshold: position.exitThreshold,
+          entryPrice: position.entryPrice,
+          tokensBought: position.tokensBought?.toString(),
+          openTx: position.openTx,
           openedAt: position.openedAt,
         },
         preview,
@@ -192,8 +270,8 @@ router.post(
 /**
  * POST /positions/:id/close
  *
- * Mark a position for closing. The actual swap and settlement is
- * handled by the services package asynchronously.
+ * Close an open position: sell tokens via Jupiter, calculate P&L,
+ * distribute profits, and return capital.
  */
 router.post(
   '/:id/close',
@@ -213,7 +291,7 @@ router.post(
         where: { id: positionId },
         include: {
           token: {
-            select: { address: true, name: true, symbol: true },
+            select: { id: true, address: true, name: true, symbol: true, creatorWallet: true, totalTradingVolume: true },
           },
         },
       });
@@ -228,14 +306,103 @@ router.post(
         throw new ValidationError(`Position is already ${position.status}`);
       }
 
-      // Close the position directly
-      // In production, Jupiter swap would execute here first to sell tokens
-      // For now, mark as closed and return protocol capital to pool
+      if (!position.entryPrice || !position.tokensBought) {
+        throw new ValidationError('Position missing entry data — cannot close');
+      }
+
+      const entryPrice = Number(position.entryPrice);
+      const tokensBought = position.tokensBought;
+      const userCapitalLamports = position.userCapital;
+      const protocolCapitalLamports = position.protocolCapital;
+      const tier = position.tier as Tier;
+      const protocolWallet = getProtocolWallet();
+      const connection = getConnection();
+
+      // 1. Sell tokens via Jupiter
+      const slippage = Number(req.body.slippageBps) || 200; // default 2% for sells
+      let closeTx: string;
+      let solReceived: bigint;
+
+      try {
+        const sellResult = await swapTokenToSol(
+          position.token.address,
+          tokensBought,
+          slippage,
+          protocolWallet,
+        );
+        closeTx = sellResult.txSignature;
+        solReceived = sellResult.solReceived;
+
+        console.log(
+          `[positions] Sold tokens: ${closeTx} | received=${solReceived} lamports`,
+        );
+      } catch (sellErr) {
+        console.error(`[positions] Token sell failed:`, sellErr);
+        throw new ValidationError(
+          `Failed to sell tokens: ${sellErr instanceof Error ? sellErr.message : 'Unknown error'}`,
+        );
+      }
+
+      // 2. Calculate P&L from actual swap result
+      const exitPrice = Number(solReceived) / Number(tokensBought);
+      const positionSize = userCapitalLamports + protocolCapitalLamports;
+
+      // Actual P&L: solReceived - totalCapitalDeployed
+      const totalProfitLamports = solReceived - positionSize;
+      const isProfitable = totalProfitLamports > 0n;
+      const flatFeeLamports = position.flatFee;
+
+      // Revenue distribution from flat fee
+      const creatorPayoutLamports = (flatFeeLamports * 30n) / 100n;  // 30% to creator
+      const burnAmountLamports = (flatFeeLamports * 20n) / 100n;     // 20% burned
+      const poolReturnLamports = flatFeeLamports - creatorPayoutLamports - burnAmountLamports; // 50% to pool
+
+      // User profit distribution
+      let userCashProfitLamports = 0n;
+      let userLockLamports = 0n;
+      if (isProfitable) {
+        userCashProfitLamports = (totalProfitLamports * 70n) / 100n;  // 70% cash
+        userLockLamports = totalProfitLamports - userCashProfitLamports; // 30% locked in $FRONT
+      }
+
+      // What goes back to user: their original capital + 70% profit - flat fee
+      const userReturnLamports = isProfitable
+        ? userCapitalLamports + userCashProfitLamports - flatFeeLamports
+        : (solReceived > protocolCapitalLamports + flatFeeLamports
+            ? solReceived - protocolCapitalLamports - flatFeeLamports
+            : 0n); // user lost everything
+
+      // Protocol gets back: their capital + fee + pool share
+      const protocolReturnLamports = protocolCapitalLamports + flatFeeLamports + poolReturnLamports;
+
+      // Determine status
+      const finalStatus = isProfitable ? 'closed_profit' : 'closed_loss';
+
+      // 3. Transfer user's SOL back to their wallet
+      if (userReturnLamports > 0n) {
+        try {
+          await transferSol(protocolWallet, wallet, userReturnLamports);
+          console.log(`[positions] Returned ${Number(userReturnLamports) / 1e9} SOL to user ${wallet}`);
+        } catch (returnErr) {
+          console.error(`[positions] CRITICAL: Failed to return SOL to user:`, returnErr);
+        }
+      }
+
+      // 4. Update position record with all settlement data
       const closedPosition = await prisma.position.update({
         where: { id: positionId },
         data: {
-          status: 'closed',
+          status: finalStatus,
+          exitPrice: exitPrice,
+          pnlSol: totalProfitLamports,
+          userProfit: userCashProfitLamports + userLockLamports,
+          protocolRevenue: flatFeeLamports,
+          creatorPayout: creatorPayoutLamports,
+          burnAmount: burnAmountLamports,
+          poolReturn: poolReturnLamports,
+          lockAmount: userLockLamports,
           closedAt: new Date(),
+          closeTx,
         },
         include: {
           token: {
@@ -244,20 +411,37 @@ router.post(
         },
       });
 
-      // Return protocol capital to the pool
+      // 5. Pool ledger: return protocol capital + pool revenue share
       await prisma.poolLedger.create({
         data: {
           type: 'position_close',
-          amount: position.protocolCapital,
+          amount: protocolCapitalLamports + poolReturnLamports,
           referenceId: positionId,
+          txSignature: closeTx,
         },
       });
+
+      // 6. Update token trading volume
+      await prisma.token.update({
+        where: { id: position.token.id },
+        data: {
+          totalTradingVolume: position.token.totalTradingVolume + positionSize,
+        },
+      });
+
+      const pnlSol = Number(totalProfitLamports) / 1e9;
+      console.log(
+        `[positions] Position #${positionId} closed as ${finalStatus} | P&L: ${pnlSol.toFixed(4)} SOL`,
+      );
 
       sendSuccess(res, {
         id: closedPosition.id,
         status: closedPosition.status,
-        message: 'Position closed successfully.',
+        message: `Position closed. ${isProfitable ? `Profit: +${pnlSol.toFixed(4)} SOL` : `Loss: ${pnlSol.toFixed(4)} SOL`}`,
         token: closedPosition.token,
+        pnlSol: pnlSol.toFixed(6),
+        userReturn: (Number(userReturnLamports) / 1e9).toFixed(6),
+        closeTx,
         closedAt: closedPosition.closedAt,
       });
     } catch (err) {

@@ -198,16 +198,53 @@ export async function getTokenBalance(
  * @param wallet - Wallet public key
  * @returns SOL balance in lamports
  */
-export async function getSolBalance(wallet: PublicKey): Promise<bigint> {
+export async function getSolBalance(wallet: PublicKey | string): Promise<bigint> {
   const connection = getConnection();
+  const pubkey = typeof wallet === 'string' ? new PublicKey(wallet) : wallet;
 
   try {
-    const balance = await connection.getBalance(wallet, 'confirmed');
+    const balance = await connection.getBalance(pubkey, 'confirmed');
     return BigInt(balance);
   } catch (err) {
     console.error(
-      `${LOG_PREFIX} Failed to get SOL balance for ${wallet.toBase58()}: ${err instanceof Error ? err.message : String(err)}`,
+      `${LOG_PREFIX} Failed to get SOL balance for ${pubkey.toBase58()}: ${err instanceof Error ? err.message : String(err)}`,
     );
     return 0n;
   }
+}
+
+/**
+ * Transfer SOL from one keypair to a destination address.
+ *
+ * @param fromKeypair - Keypair sending the SOL (must have enough balance)
+ * @param toAddress - Destination wallet address (string or PublicKey)
+ * @param lamports - Amount in lamports to transfer
+ * @returns Transaction signature
+ */
+export async function transferSol(
+  fromKeypair: Keypair,
+  toAddress: string | PublicKey,
+  lamports: bigint,
+): Promise<string> {
+  const connection = getConnection();
+  const toPubkey = typeof toAddress === 'string' ? new PublicKey(toAddress) : toAddress;
+
+  console.log(
+    `${LOG_PREFIX} Transferring ${Number(lamports) / 1e9} SOL from ${fromKeypair.publicKey.toBase58().substring(0, 8)}... to ${toPubkey.toBase58().substring(0, 8)}...`,
+  );
+
+  const { SystemProgram } = await import('@solana/web3.js');
+
+  const tx = new Transaction().add(
+    SystemProgram.transfer({
+      fromPubkey: fromKeypair.publicKey,
+      toPubkey,
+      lamports,
+    }),
+  );
+
+  const signature = await sendAndConfirmTransaction(connection, tx, [fromKeypair]);
+
+  console.log(`${LOG_PREFIX} Transfer complete: ${signature}`);
+  return signature;
 }

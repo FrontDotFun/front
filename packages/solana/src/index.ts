@@ -38,6 +38,7 @@ export {
   transferToken,
   getTokenBalance,
   getSolBalance,
+  transferSol,
 } from './token.js';
 
 // Price feeds

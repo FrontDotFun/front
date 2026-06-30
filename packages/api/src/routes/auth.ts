@@ -167,8 +167,7 @@ router.get('/me', verifyWalletSignature, async (req, res) => {
 /**
  * GET /auth/wallet
  *
- * Return the authenticated user's wallet address.
- * Balance is fetched from Helius RPC via the /portfolio endpoint.
+ * Return the authenticated user's wallet address and real SOL balance.
  */
 router.get('/wallet', verifyWalletSignature, async (req, res) => {
   try {
@@ -184,10 +183,75 @@ router.get('/wallet', verifyWalletSignature, async (req, res) => {
       throw new AuthError('User not found');
     }
 
+    // Fetch real balance from on-chain
+    const { getSolBalance } = await import('@front-protocol/solana');
+    const balanceLamports = await getSolBalance(user.walletAddress);
+    const balanceSol = (Number(balanceLamports) / 1e9).toFixed(6);
+
     sendSuccess(res, {
       walletAddress: user.walletAddress,
-      balanceLamports: '0',
-      balanceSol: '0.000',
+      balanceLamports: balanceLamports.toString(),
+      balanceSol,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+/**
+ * POST /auth/withdraw
+ *
+ * Withdraw SOL from user's custodial wallet to an external Solana address.
+ * Users can only withdraw SOL from their own wallet — never protocol funds.
+ */
+router.post('/withdraw', verifyWalletSignature, async (req, res) => {
+  try {
+    const authReq = req as AuthenticatedRequest;
+    const userId = authReq.userId!;
+    const { destinationAddress, amountLamports } = req.body;
+
+    if (!destinationAddress || !amountLamports) {
+      throw new AuthError('destinationAddress and amountLamports are required');
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { walletAddress: true, encryptedKey: true },
+    });
+
+    if (!user) {
+      throw new AuthError('User not found');
+    }
+
+    const { loadBotWallet, getSolBalance, transferSol, getProtocolWallet } = await import('@front-protocol/solana');
+
+    const userKeypair = loadBotWallet(user.encryptedKey);
+    const amount = BigInt(amountLamports);
+
+    // Check balance (reserve 5000 lamports for tx fee)
+    const balance = await getSolBalance(user.walletAddress);
+    if (balance < amount + 5000n) {
+      throw new AuthError(
+        `Insufficient balance. You have ${(Number(balance) / 1e9).toFixed(6)} SOL but tried to withdraw ${(Number(amount) / 1e9).toFixed(6)} SOL`,
+      );
+    }
+
+    // Ensure user is NOT trying to withdraw from protocol wallet
+    const protocolWallet = getProtocolWallet();
+    if (userKeypair.publicKey.equals(protocolWallet.publicKey)) {
+      throw new AuthError('Cannot withdraw from protocol wallet');
+    }
+
+    // Execute transfer
+    const signature = await transferSol(userKeypair, destinationAddress, amount);
+
+    console.log(`[auth] Withdraw ${Number(amount) / 1e9} SOL from ${user.walletAddress} to ${destinationAddress}: ${signature}`);
+
+    sendSuccess(res, {
+      txSignature: signature,
+      amountSol: (Number(amount) / 1e9).toFixed(6),
+      from: user.walletAddress,
+      to: destinationAddress,
     });
   } catch (err) {
     sendError(res, err);
