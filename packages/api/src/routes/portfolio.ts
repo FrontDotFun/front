@@ -70,8 +70,8 @@ router.get('/', verifyWalletSignature, async (req, res) => {
 
     // Get profit locks
     const locks = await prisma.profitLock.aggregate({
-      where: { userWallet: wallet, status: 'locked' },
-      _sum: { lockedAmount: true },
+      where: { userWallet: wallet, isUnlocked: false },
+      _sum: { solAmount: true },
       _count: true,
     });
 
@@ -100,7 +100,7 @@ router.get('/', verifyWalletSignature, async (req, res) => {
       },
       locks: {
         activeLocks: locks._count,
-        totalLockedLamports: String(locks._sum.lockedAmount ?? 0),
+        totalLockedLamports: String(locks._sum.solAmount ?? 0),
       },
     });
   } catch (err) {
