@@ -3,55 +3,14 @@
 // ──────────────────────────────────────────────
 
 import { Router } from 'express';
-import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@front-protocol/database';
+import { generateBotWallet } from '@front-protocol/solana';
 import { issueToken, verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { sendSuccess, sendError } from '../lib/response';
 import { ValidationError, AuthError } from '../lib/errors';
 
 const router = Router();
-
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'dev-encryption-key-change-in-prod!!'; // must be 32 bytes for AES-256
-
-/**
- * Encrypt a string using AES-256-GCM.
- */
-function encryptKey(plaintext: string): string {
-  // Derive a 32-byte key from the env var
-  const key = crypto.createHash('sha256').update(ENCRYPTION_KEY).digest();
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
-  const authTag = cipher.getAuthTag().toString('hex');
-  // Store as iv:authTag:ciphertext
-  return `${iv.toString('hex')}:${authTag}:${encrypted}`;
-}
-
-/**
- * Generate a random wallet address (base58-like, 32-44 chars).
- * In production this would be a real Solana keypair; for dev we generate
- * a random address and a fake private key.
- */
-function generateWallet(): { walletAddress: string; privateKey: string } {
-  const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  const bytes = crypto.randomBytes(32);
-
-  // Encode the random bytes as base58 to get a realistic-looking address
-  let num = BigInt('0x' + bytes.toString('hex'));
-  let address = '';
-  while (num > 0n) {
-    const remainder = Number(num % 58n);
-    address = ALPHABET[remainder] + address;
-    num = num / 58n;
-  }
-  // Ensure length is 32-44 chars
-  address = address.slice(0, 44).padStart(32, '1');
-
-  const privateKey = bytes.toString('hex');
-  return { walletAddress: address, privateKey };
-}
 
 /**
  * Validate email format (basic check).
@@ -98,11 +57,8 @@ router.post('/register', async (req, res) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Generate wallet
-    const { walletAddress, privateKey } = generateWallet();
-
-    // Encrypt private key
-    const encryptedKey = encryptKey(privateKey);
+    // Generate real Solana wallet
+    const { publicKey: walletAddress, encryptedPrivateKey: encryptedKey } = generateBotWallet();
 
     // Create user
     const user = await prisma.user.create({

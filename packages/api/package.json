@@ -16,6 +16,7 @@
     "@front-protocol/core": "workspace:*",
     "@front-protocol/database": "workspace:*",
     "@front-protocol/services": "workspace:*",
+    "@front-protocol/solana": "workspace:*",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",

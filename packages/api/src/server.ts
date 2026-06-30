@@ -26,7 +26,7 @@ app.use(helmet());
 app.use(
   cors({
     origin: process.env.NODE_ENV === 'production'
-      ? process.env.CORS_ORIGIN?.split(',') || ['https://apeharder.com']
+      ? process.env.CORS_ORIGIN?.split(',') || ['https://www.front.fun', 'https://front.fun']
       : true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
