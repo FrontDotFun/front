@@ -16,6 +16,7 @@ export interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  setToken: (token: string) => void;
   isAuthenticated: boolean;
 }
 
@@ -26,6 +27,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => {},
   register: async () => {},
   logout: () => {},
+  setToken: () => {},
   isAuthenticated: false,
 });
 
@@ -74,7 +76,7 @@ async function fetchMe(token: string): Promise<User> {
 
 export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [token, setTokenState] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // On mount, validate stored token
@@ -87,7 +89,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
     fetchMe(stored)
       .then((u) => {
         setUser(u);
-        setToken(stored);
+        setTokenState(stored);
       })
       .catch(() => {
         localStorage.removeItem(TOKEN_KEY);
@@ -100,21 +102,32 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
   const login = useCallback(async (email: string, password: string) => {
     const data = await authRequest<{ token: string; user: User }>('/auth/login', { email, password });
     localStorage.setItem(TOKEN_KEY, data.token);
-    setToken(data.token);
+    setTokenState(data.token);
     setUser(data.user);
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
     const data = await authRequest<{ token: string; user: User }>('/auth/register', { email, password });
     localStorage.setItem(TOKEN_KEY, data.token);
-    setToken(data.token);
+    setTokenState(data.token);
     setUser(data.user);
   }, []);
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_KEY);
-    setToken(null);
+    setTokenState(null);
     setUser(null);
+  }, []);
+
+  const handleSetToken = useCallback((newToken: string) => {
+    localStorage.setItem(TOKEN_KEY, newToken);
+    setTokenState(newToken);
+    fetchMe(newToken)
+      .then((u) => setUser(u))
+      .catch(() => {
+        localStorage.removeItem(TOKEN_KEY);
+        setTokenState(null);
+      });
   }, []);
 
   return (
@@ -126,6 +139,7 @@ export const AuthProvider: FC<AuthProviderProps> = ({ children }) => {
         login,
         register,
         logout,
+        setToken: handleSetToken,
         isAuthenticated: !!user && !!token,
       }}
     >

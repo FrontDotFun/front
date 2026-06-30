@@ -43,8 +43,8 @@ export const Auth: FC = () => {
   };
 
   const handleGoogleLogin = () => {
-    // Placeholder — wire to backend OAuth flow
-    setError('Google login will be available soon');
+    const apiUrl = import.meta.env.VITE_API_URL || '/api';
+    window.location.href = `${apiUrl}/auth/google`;
   };
 
   return (

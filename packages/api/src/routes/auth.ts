@@ -193,5 +193,107 @@ router.get('/wallet', verifyWalletSignature, async (req, res) => {
     sendError(res, err);
   }
 });
+// ──────────────────────────────────────────────
+// Google OAuth
+// ──────────────────────────────────────────────
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:4001/api/auth/google/callback';
+const FRONTEND_URL = process.env.NODE_ENV === 'production' ? 'https://www.front.fun' : 'http://localhost:5173';
+
+/**
+ * GET /auth/google
+ *
+ * Redirect to Google OAuth consent screen.
+ */
+router.get('/google', (_req, res) => {
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_CALLBACK_URL,
+    response_type: 'code',
+    scope: 'openid email profile',
+    access_type: 'offline',
+    prompt: 'consent',
+  });
+
+  res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+});
+
+/**
+ * GET /auth/google/callback
+ *
+ * Handle Google OAuth callback. Exchange code for tokens,
+ * fetch user info, find or create user, issue JWT.
+ */
+router.get('/google/callback', async (req, res) => {
+  try {
+    const { code } = req.query;
+
+    if (!code || typeof code !== 'string') {
+      return res.redirect(`${FRONTEND_URL}/login?error=no_code`);
+    }
+
+    // Exchange code for tokens
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: GOOGLE_CALLBACK_URL,
+      }),
+    });
+
+    const tokenData = await tokenRes.json() as any;
+
+    if (!tokenData.access_token) {
+      console.error('[Google OAuth] Token exchange failed:', tokenData);
+      return res.redirect(`${FRONTEND_URL}/login?error=token_exchange_failed`);
+    }
+
+    // Fetch user info from Google
+    const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    });
+
+    const googleUser = await userInfoRes.json() as any;
+
+    if (!googleUser.email) {
+      return res.redirect(`${FRONTEND_URL}/login?error=no_email`);
+    }
+
+    // Find or create user
+    let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
+
+    if (!user) {
+      // New user — generate Solana wallet
+      const { publicKey: walletAddress, encryptedPrivateKey: encryptedKey } = generateBotWallet();
+
+      // Create with a random password hash (they'll use Google to sign in)
+      const randomPass = await bcrypt.hash(crypto.randomUUID(), 12);
+
+      user = await prisma.user.create({
+        data: {
+          email: googleUser.email,
+          passwordHash: randomPass,
+          walletAddress,
+          encryptedKey,
+        },
+      });
+    }
+
+    // Issue JWT
+    const token = issueToken(user.id, user.walletAddress);
+
+    // Redirect to frontend with token
+    res.redirect(`${FRONTEND_URL}/auth/callback?token=${token}`);
+  } catch (err) {
+    console.error('[Google OAuth] Error:', err);
+    res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
+  }
+});
 
 export default router;

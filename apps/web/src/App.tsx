@@ -12,6 +12,7 @@ import { Locks } from './pages/Locks';
 import { Stats } from './pages/Stats';
 import { Docs } from './pages/Docs';
 import { Auth } from './pages/Auth';
+import AuthCallback from './pages/AuthCallback';
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
             {/* Landing page — standalone, no sidebar */}
             <Route path="/" element={<Landing />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
 
             {/* App shell — sidebar + top bar */}
             <Route element={<Layout />}>
