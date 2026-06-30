@@ -13,7 +13,7 @@ import { AppError } from './lib/errors';
 import { sendError } from './lib/response';
 
 const app = express();
-const PORT = parseInt(process.env.API_PORT || '4001', 10);
+const PORT = parseInt(process.env.PORT || process.env.API_PORT || '4001', 10);
 
 // ──────────────────────────────────────────────
 // Global Middleware

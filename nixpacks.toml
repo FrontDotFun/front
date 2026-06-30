@@ -1,8 +1,0 @@
-[build]
-buildCommand = "npm install -g pnpm@9 && pnpm install --frozen-lockfile && cd packages/database && npx prisma generate && cd ../core && pnpm build && cd ../solana && pnpm build && cd ../api && pnpm build"
-
-[start]
-startCommand = "cd packages/api && node dist/server.js"
-
-[phases.setup]
-nixPkgs = ["nodejs_22", "openssl"]
