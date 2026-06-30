@@ -47,9 +47,9 @@ router.get('/trending', publicLimiter, async (_req, res) => {
       name: t.name || 'Unknown',
       symbol: t.symbol || '???',
       price: t.price || 0,
-      priceChange24h: t.priceChange24hPercent || 0,
+      priceChange24h: t.price24hChangePercent || 0,
       volume24h: t.volume24hUSD || 0,
-      marketCap: t.mc || 0,
+      marketCap: t.marketcap || t.mc || 0,
       liquidity: t.liquidity || 0,
       logoURI: t.logoURI || null,
     }));
