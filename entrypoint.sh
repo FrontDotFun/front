@@ -7,4 +7,4 @@ npx prisma migrate deploy
 
 echo "Starting API server..."
 cd /app
-exec node packages/api/dist/server.js
+exec tsx packages/api/src/server.ts
