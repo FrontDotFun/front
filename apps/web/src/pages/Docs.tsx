@@ -42,7 +42,7 @@ export const Docs: FC = () => {
         <div className="docs-callout">
           <div className="docs-callout-title">Core Guarantee</div>
           <p>
-            The protocol is designed to never lose money. All positions have strict auto-close thresholds, safety buffers,
+            The protocol is designed with strict risk management. All positions have strict auto-close thresholds, safety buffers,
             position size caps relative to liquidity, and a maximum 24-hour duration. The protocol always recovers
             its capital plus fees before any loss scenario can materialize.
           </p>

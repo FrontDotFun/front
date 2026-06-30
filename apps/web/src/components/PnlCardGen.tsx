@@ -138,7 +138,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     // Footer
     ctx.font = '10px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#333';
-    ctx.fillText('Leveraged memecoin trading • Protocol never loses money', 28, 308);
+    ctx.fillText('Leveraged memecoin trading on Solana', 28, 308);
     ctx.textAlign = 'right';
     ctx.fillText(new Date().toISOString().split('T')[0], W - 28, 308);
     ctx.textAlign = 'left';
@@ -186,7 +186,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
               onClick={downloadCard}
               type="button"
             >
-              ⬇️ Download
+              Download
             </button>
             <button
               className="btn btn-ghost btn-sm"

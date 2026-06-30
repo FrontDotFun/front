@@ -580,12 +580,12 @@ const Sparkline: FC<{ data: number[]; color: string; width?: number; height?: nu
 
 /* ── Trending Token Cards ────────────────────────────── */
 const FEATURE_CARDS = [
-  { title: 'Bonded Tokens', desc: 'Up to 10x leverage', detail: 'Highest liquidity, lowest risk', icon: '🔗' },
-  { title: 'Rising Tokens', desc: 'Up to 5x leverage', detail: 'Growing liquidity, moderate risk', icon: '📈' },
-  { title: 'Degen Tokens', desc: 'Up to 3x leverage', detail: 'New launches, higher risk', icon: '🎰' },
-  { title: 'Auto Wallets', desc: 'No wallet needed', detail: 'Fresh Solana wallet per account', icon: '🔑' },
-  { title: 'Jupiter Swaps', desc: 'Real on-chain trades', detail: 'Aggregated best price execution', icon: '⚡' },
-  { title: 'Creator Revenue', desc: '30% fee share', detail: 'Token creators earn from leverage trades', icon: '💰' },
+  { title: 'Bonded Tokens', desc: 'Up to 10x leverage', detail: 'Highest liquidity, lowest risk' },
+  { title: 'Rising Tokens', desc: 'Up to 5x leverage', detail: 'Growing liquidity, moderate risk' },
+  { title: 'Degen Tokens', desc: 'Up to 3x leverage', detail: 'New launches, higher risk' },
+  { title: 'Auto Wallets', desc: 'No wallet needed', detail: 'Fresh Solana wallet per account' },
+  { title: 'Jupiter Swaps', desc: 'Real on-chain trades', detail: 'Aggregated best price execution' },
+  { title: 'Creator Revenue', desc: '30% fee share', detail: 'Token creators earn from leverage trades' },
 ];
 
 const TrendingTokens: FC = () => {
@@ -615,7 +615,7 @@ const TrendingTokens: FC = () => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
-                <span style={{ marginRight: 6 }}>{card.icon}</span>{card.title}
+                {card.title}
               </div>
               <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>
                 {card.detail}
@@ -652,7 +652,7 @@ const ComparisonTable: FC = () => {
     { feature: 'Creator revenue sharing', normal: false, front: true },
     { feature: 'Auto risk management', normal: false, front: true },
     { feature: 'No KYC to trade', normal: true, front: true },
-    { feature: 'Protocol never loses', normal: false, front: true },
+    { feature: 'Auto-liquidation safety', normal: false, front: true },
   ];
 
   return (
@@ -717,7 +717,7 @@ const FAQ_ITEMS = [
     a: 'You deposit SOL as collateral. The protocol lends you additional capital to open a larger position. Your trade is executed as a real on-chain Jupiter swap — not a synthetic perpetual. When the price moves, your P&L is based on the full leveraged position.',
   },
   {
-    q: 'How does the protocol make sure it never loses money?',
+    q: 'How does the protocol manage risk?',
     a: 'Every position has strict auto-close thresholds. If the price drops to a point where it would eat into the protocol\'s capital, the position is automatically liquidated with a safety buffer. The protocol always recovers its principal plus fees before any scenario can create a loss.',
   },
   {

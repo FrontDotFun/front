@@ -16,7 +16,7 @@ export const TIER_CONFIGS: Record<Tier, TierConfig> = {
   bonded: {
     tier: 'bonded',
     label: 'Bonded',
-    emoji: '🟢',
+    emoji: 'B',
     maxLeverage: 7,
     exitThresholdBps: -1_500,  // -15%
     flatFeeBps: 200,           // 2%
@@ -27,7 +27,7 @@ export const TIER_CONFIGS: Record<Tier, TierConfig> = {
   rising: {
     tier: 'rising',
     label: 'Rising',
-    emoji: '🟡',
+    emoji: 'R',
     maxLeverage: 5,
     exitThresholdBps: -2_000,  // -20%
     flatFeeBps: 300,           // 3%
@@ -38,7 +38,7 @@ export const TIER_CONFIGS: Record<Tier, TierConfig> = {
   degen: {
     tier: 'degen',
     label: 'Degen',
-    emoji: '🔴',
+    emoji: 'D',
     maxLeverage: 3,
     exitThresholdBps: -3_000,  // -30%
     flatFeeBps: 500,           // 5%

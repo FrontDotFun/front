@@ -144,7 +144,7 @@ export const Stats: FC = () => {
       <div className="card" style={{ padding: 20, borderColor: 'rgba(240, 185, 11, 0.15)' }}>
         <h3 style={{ marginBottom: 12 }}>Protocol Guarantees</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.86rem', color: 'var(--text-1)' }}>
-          <div>• <strong>Protocol never loses money</strong> — positions auto-close before user collateral is consumed, with a 5% safety buffer</div>
+          <div>• <strong>Auto-liquidation safety</strong> — positions auto-close before protocol capital is at risk, with a 5% safety buffer</div>
           <div>• <strong>No manual listing required</strong> — token listing is automatic and verifiable on-chain when creator rewards are redirected</div>
           <div>• <strong>Insurance fund</strong> — covers edge cases from extreme slippage during liquidation</div>
           <div>• <strong>On-chain verifiable</strong> — all fee sharing configs are immutable and transparent</div>
