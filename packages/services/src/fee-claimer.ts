@@ -100,7 +100,7 @@ async function claimFeesForToken(
   const mintPubkey = new PublicKey(tokenAddress);
 
   try {
-    const pumpSdk = new PumpSdk(connection as any);
+    const pumpSdk = new PumpSdk();
 
     // Step 1: Fetch and decode the sharing config
     const sharingConfigAddress = feeSharingConfigPda(mintPubkey);

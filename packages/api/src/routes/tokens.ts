@@ -301,7 +301,7 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
             const sharingInfo = await connection.getAccountInfo(sharingPda);
 
             if (sharingInfo) {
-              const pumpSdk = new PumpSdk(connection as any);
+              const pumpSdk = new PumpSdk();
               const config = pumpSdk.decodeSharingConfig(sharingInfo);
               const shareholders = (config as any).shareholders || (config as any).shares || [];
               for (const sh of shareholders) {

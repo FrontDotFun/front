@@ -210,7 +210,7 @@ router.post('/admin/fund-wallet', async (req, res) => {
     const protocolKeypair = getProtocolWallet();
     const amount = BigInt(amountLamports);
 
-    const txSig = await transferSol(protocolKeypair, destinationAddress, Number(amount));
+    const txSig = await transferSol(protocolKeypair, destinationAddress, amount);
 
     sendSuccess(res, {
       message: 'Wallet funded',

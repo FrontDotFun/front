@@ -55,7 +55,7 @@ async function verifyFeeRedirect(mint: string): Promise<{
     if (sharingInfo) {
       // Decode the sharing config to find shareholders
       try {
-        const pumpSdk = new PumpSdk(connection as any);
+        const pumpSdk = new PumpSdk();
         const config = pumpSdk.decodeSharingConfig(sharingInfo);
         // config.shareholders is an array of { address, shareBps }
         const shareholders = (config as any).shareholders || (config as any).shares || [];
