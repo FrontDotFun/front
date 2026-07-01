@@ -158,7 +158,11 @@ export const Explore: FC = () => {
               {/* Token Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
                 <img
-                  src={token.imageUri || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.address}.png`}
+                  src={
+                    token.imageUri
+                      ? token.imageUri.replace('https://ipfs.io/ipfs/', 'https://cf-ipfs.com/ipfs/')
+                      : `https://dd.dexscreener.com/ds-data/tokens/solana/${token.address}.png`
+                  }
                   alt={token.symbol}
                   style={{
                     width: 42, height: 42, borderRadius: '50%',
@@ -167,12 +171,14 @@ export const Explore: FC = () => {
                   }}
                   onError={(e) => {
                     const img = e.target as HTMLImageElement;
-                    // Try Jupiter CDN as second fallback
-                    if (!img.dataset.fallback) {
+                    const step = img.dataset.fallback || '0';
+                    if (step === '0') {
                       img.dataset.fallback = '1';
+                      img.src = `https://dd.dexscreener.com/ds-data/tokens/solana/${token.address}.png`;
+                    } else if (step === '1') {
+                      img.dataset.fallback = '2';
                       img.src = `https://tokens.jup.ag/token/${token.address}/logo`;
                     } else {
-                      // All image sources failed — show letter avatar
                       img.style.display = 'none';
                       if (img.nextElementSibling) (img.nextElementSibling as HTMLElement).style.display = 'flex';
                     }
