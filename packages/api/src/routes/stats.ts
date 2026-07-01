@@ -186,4 +186,39 @@ router.post('/admin/seed-pool', async (req, res) => {
   }
 });
 
+/**
+ * POST /admin/fund-wallet
+ *
+ * Transfer SOL from the protocol wallet to a target address. Protected by ADMIN_SECRET.
+ * Body: { destinationAddress: string, amountLamports: string }
+ */
+router.post('/admin/fund-wallet', async (req, res) => {
+  try {
+    const secret = req.headers['x-admin-secret'];
+    if (!secret || secret !== process.env.ADMIN_SECRET) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const { destinationAddress, amountLamports } = req.body;
+    if (!destinationAddress || !amountLamports) {
+      return res.status(400).json({ success: false, error: 'destinationAddress and amountLamports required' });
+    }
+
+    const { getProtocolWallet, transferSol } = await import('@front-protocol/solana');
+    const protocolKeypair = getProtocolWallet();
+    const amount = BigInt(amountLamports);
+
+    const txSig = await transferSol(protocolKeypair, destinationAddress, Number(amount));
+
+    sendSuccess(res, {
+      message: 'Wallet funded',
+      destination: destinationAddress,
+      amount: amount.toString(),
+      txSignature: txSig,
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 export default router;
