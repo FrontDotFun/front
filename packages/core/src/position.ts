@@ -50,16 +50,16 @@ export function validatePositionOpen(
 
   // Validate capital bounds
   if (params.userCapitalLamports < MIN_USER_CAPITAL_LAMPORTS) {
-    errors.push(`Minimum capital is 0.01 SOL`);
+    errors.push(`Minimum collateral is 0.01 SOL. Please increase your amount.`);
   }
   if (params.userCapitalLamports > MAX_USER_CAPITAL_LAMPORTS) {
-    errors.push(`Maximum capital is 10 SOL`);
+    errors.push(`Maximum collateral is 10 SOL per position. Please reduce your amount.`);
   }
 
   // Validate leverage
   if (!isValidLeverage(params.leverage, tier)) {
     const max = TIER_CONFIGS[tier].maxLeverage;
-    errors.push(`Leverage must be 1-${max}x for ${tier} tier`);
+    errors.push(`Max leverage for ${tier} tier is ${max}x. Please select ${max}x or lower.`);
   }
 
   // Validate pool has enough capital
@@ -69,7 +69,9 @@ export function validatePositionOpen(
   );
   if (protocolCapital > poolBalanceLamports) {
     errors.push(
-      `Pool has insufficient capital. Need ${formatSol(protocolCapital)} SOL, pool has ${formatSol(poolBalanceLamports)} SOL`,
+      `The protocol pool doesn't have enough capital right now. ` +
+      `Your position needs ${formatSol(protocolCapital)} SOL from the pool, but only ${formatSol(poolBalanceLamports)} SOL is available. ` +
+      `Try a smaller position size, lower leverage, or wait for other positions to close.`,
     );
   }
 

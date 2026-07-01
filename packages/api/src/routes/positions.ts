@@ -178,7 +178,9 @@ router.post(
       const userBalance = await getSolBalance(wallet);
       if (userBalance < userCapital) {
         throw new ValidationError(
-          `Insufficient SOL balance. You have ${Number(userBalance) / 1e9} SOL but need ${Number(userCapital) / 1e9} SOL`,
+          `You don't have enough SOL. Your balance is ${(Number(userBalance) / 1e9).toFixed(4)} SOL ` +
+          `but this position requires ${(Number(userCapital) / 1e9).toFixed(4)} SOL. ` +
+          `Deposit more SOL to your account wallet first.`,
         );
       }
 

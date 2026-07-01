@@ -42,6 +42,7 @@ export const Trade: FC = () => {
   const [stopLossPct, setStopLossPct] = useState('');
   const [, startTransition] = useTransition();
   const [optimisticState, setOptimisticState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [expandedPosition, setExpandedPosition] = useState<number | null>(null);
 
@@ -147,6 +148,7 @@ export const Trade: FC = () => {
     if (!selectedToken || collateralSol <= 0 || isOpening) return;
     setShowConfirmModal(false);
     setOptimisticState('submitting');
+    setErrorMessage('');
     try {
       const capitalLamports = String(Math.round(collateralSol * 1e9));
       await openPosition(selectedToken.address, capitalLamports, leverage);
@@ -155,9 +157,18 @@ export const Trade: FC = () => {
       setTakeProfitPct('');
       setStopLossPct('');
       setTimeout(() => setOptimisticState('idle'), 2000);
-    } catch {
+    } catch (err: any) {
+      let msg = 'Something went wrong. Please try again.';
+      if (err?.body) {
+        const b = err.body as any;
+        if (b.details?.length) msg = b.details[0];
+        else if (b.error) msg = b.error;
+      } else if (err?.message) {
+        msg = err.message;
+      }
+      setErrorMessage(msg);
       setOptimisticState('error');
-      setTimeout(() => setOptimisticState('idle'), 2000);
+      setTimeout(() => setOptimisticState('idle'), 6000);
     }
   }, [selectedToken, collateralSol, leverage, isOpening, openPosition]);
 
@@ -613,6 +624,22 @@ export const Trade: FC = () => {
                 >
                   {tradingDisabled ? 'Trading Unavailable' : apeButtonLabel()}
                 </motion.button>
+
+                {/* Error message */}
+                {errorMessage && optimisticState === 'error' && (
+                  <div style={{
+                    marginTop: 8,
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'rgba(255, 59, 59, 0.08)',
+                    border: '1px solid rgba(255, 59, 59, 0.2)',
+                    color: '#ff6b6b',
+                    fontSize: '0.82rem',
+                    lineHeight: 1.5,
+                  }}>
+                    {errorMessage}
+                  </div>
+                )}
               </div>
             )}
 

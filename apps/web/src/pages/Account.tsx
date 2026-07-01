@@ -121,11 +121,16 @@ export const Account: FC = () => {
       setDestAddress('');
       setWithdrawAmount('');
       fetchBalance();
-    } catch (err) {
-      setWithdrawResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'Withdrawal failed',
-      });
+    } catch (err: any) {
+      let msg = 'Withdrawal failed. Please try again.';
+      if (err?.body) {
+        const b = err.body as any;
+        if (b.details?.length) msg = b.details[0];
+        else if (b.error) msg = b.error;
+      } else if (err?.message) {
+        msg = err.message;
+      }
+      setWithdrawResult({ success: false, message: msg });
     } finally {
       setWithdrawing(false);
     }
@@ -142,10 +147,15 @@ export const Account: FC = () => {
           Accept: 'application/json',
         },
       });
-      if (!res.ok) throw new Error('Claim failed');
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        const msg = json?.details?.[0] || json?.error || 'Failed to claim lock. It may not be ready yet.';
+        alert(msg);
+        return;
+      }
       await fetchLocks();
     } catch (err) {
-      console.error('Claim error:', err);
+      alert('Failed to claim lock. Please try again later.');
     } finally {
       setClaiming(null);
     }
