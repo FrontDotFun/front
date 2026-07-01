@@ -17,7 +17,7 @@ RUN pnpm install --frozen-lockfile --prod=false
 FROM deps AS build
 COPY . .
 RUN pnpm db:generate
-RUN pnpm turbo build --filter=@front-protocol/api...
+RUN pnpm turbo build --filter=@front-protocol/api... --filter=@front-protocol/services...
 
 # Production
 FROM node:20-alpine AS production
