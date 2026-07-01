@@ -270,75 +270,41 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
     }
 
     // ── On-chain fee verification ──
-    // Check that the token's creator fee wallet is set to the protocol wallet
-    const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+    // Verify the token's creator fees are redirected to the protocol wallet.
+    // We check pump.fun's API for the fee_recipient field.
     let feeVerified = false;
+    let feeCheckError: string | null = null;
 
     try {
-      // Use Helius DAS API to get the token's fee/authority config
-      const dasRes = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getAsset',
-          params: { id: tokenAddress },
-        }),
-      });
-      if (dasRes.ok) {
-        const dasData = await dasRes.json() as any;
-        const authorities = dasData.result?.authorities || [];
-        const creators = dasData.result?.creators || [];
-
-        // Check if protocol wallet is in authorities or creators
-        for (const auth of authorities) {
-          if (auth.address === PROTOCOL_WALLET) {
-            feeVerified = true;
-            break;
-          }
+      const pumpRes = await fetch(`https://frontend-api-v3.pump.fun/coins/${tokenAddress}`);
+      if (pumpRes.ok) {
+        const pumpData = await pumpRes.json() as any;
+        // Only verify if fee_recipient matches protocol wallet exactly
+        if (
+          pumpData.fee_recipient === PROTOCOL_WALLET ||
+          pumpData.creator_fee_wallet === PROTOCOL_WALLET
+        ) {
+          feeVerified = true;
+        } else {
+          feeCheckError = `Fee recipient is "${pumpData.fee_recipient || pumpData.creator_fee_wallet || 'not set'}" — must be redirected to ${PROTOCOL_WALLET}`;
         }
-        if (!feeVerified) {
-          for (const creator of creators) {
-            if (creator.address === PROTOCOL_WALLET) {
-              feeVerified = true;
-              break;
-            }
-          }
-        }
+      } else if (pumpRes.status === 404) {
+        feeCheckError = 'Token not found on pump.fun. Only pump.fun tokens are supported.';
+      } else {
+        feeCheckError = 'Could not verify fee redirect — pump.fun API returned an error. Try again later.';
       }
     } catch {
-      // If RPC call fails, check pump.fun API as fallback
+      feeCheckError = 'Could not verify fee redirect — network error. Try again later.';
     }
 
-    // Fallback: check if the pump.fun fee redirect is set via their API
+    // Block listing if fees are not redirected to protocol
     if (!feeVerified) {
-      try {
-        const pumpRes = await fetch(`https://frontend-api-v3.pump.fun/coins/${tokenAddress}`);
-        if (pumpRes.ok) {
-          const pumpData = await pumpRes.json() as any;
-          // Check if creator_fee_wallet or fee_recipient matches protocol wallet
-          if (
-            pumpData.fee_recipient === PROTOCOL_WALLET ||
-            pumpData.creator_fee_wallet === PROTOCOL_WALLET ||
-            pumpData.creator === wallet // allow the actual creator
-          ) {
-            feeVerified = true;
-          }
-        }
-      } catch {
-        // Silently continue
-      }
+      throw new ValidationError(
+        feeCheckError ||
+        'Creator fee wallet is not redirected to the Front Protocol wallet. ' +
+        'Go to pump.fun → your token → Creator Rewards → redirect to: ' + PROTOCOL_WALLET
+      );
     }
-
-    // For now, allow listing with a warning if fee verification fails
-    // In production, uncomment the throw below to block unverified tokens
-    // if (!feeVerified) {
-    //   throw new ValidationError(
-    //     'Creator fee wallet is not redirected to the Front Protocol wallet. ' +
-    //     'Go to pump.fun and redirect your creator rewards to: ' + PROTOCOL_WALLET
-    //   );
-    // }
 
     // ── Auto-detect tier from DexScreener ──
     let resolvedName: string | null = null;

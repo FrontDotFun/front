@@ -64,11 +64,17 @@ export const ListToken: FC = () => {
         message: `${res.name || 'Token'} (${res.symbol || addr.slice(0, 6)}) listed as ${res.tierLabel || res.tier} — up to ${res.maxLeverage}x leverage`,
       });
       setTokenAddress('');
-    } catch (err) {
-      setResult({
-        success: false,
-        message: err instanceof Error ? err.message : 'Failed to list token',
-      });
+    } catch (err: any) {
+      // Extract the actual error message from the API response
+      let msg = 'Failed to list token';
+      if (err?.body) {
+        const b = err.body as any;
+        if (b.details?.length) msg = b.details[0];
+        else if (b.error) msg = b.error;
+      } else if (err?.message) {
+        msg = err.message;
+      }
+      setResult({ success: false, message: msg });
     } finally {
       setLoading(false);
     }
