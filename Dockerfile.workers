@@ -1,0 +1,40 @@
+# ──────────────────────────────────────────────
+# FRONT PROTOCOL — Workers Dockerfile
+# ──────────────────────────────────────────────
+# Runs background services: price monitor, position closer,
+# burn engine, lock engine, creator payouts, listing scanner
+
+FROM node:20-slim AS builder
+
+RUN npm install -g pnpm@9
+
+WORKDIR /app
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY packages/core/package.json packages/core/
+COPY packages/database/package.json packages/database/
+COPY packages/solana/package.json packages/solana/
+COPY packages/services/package.json packages/services/
+
+RUN pnpm install --frozen-lockfile
+
+COPY packages/core/ packages/core/
+COPY packages/database/ packages/database/
+COPY packages/solana/ packages/solana/
+COPY packages/services/ packages/services/
+
+RUN pnpm -C packages/database exec prisma generate
+RUN pnpm -C packages/core build
+RUN pnpm -C packages/solana build
+RUN pnpm -C packages/services build
+
+# ── Production stage ──
+FROM node:20-slim
+
+RUN npm install -g pnpm@9
+
+WORKDIR /app
+COPY --from=builder /app ./
+
+ENV NODE_ENV=production
+
+CMD ["node", "packages/services/dist/scheduler.js"]
