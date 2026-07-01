@@ -91,8 +91,9 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
 
     if (currentBalance < amount + TX_FEE_RESERVE) {
       throw new InsufficientFundsError(
-        `Insufficient balance. You have ${(Number(currentBalance) / 1e9).toFixed(4)} SOL ` +
-        `but need ${(Number(amount) / 1e9).toFixed(4)} SOL + 0.005 SOL fee reserve`,
+        `Not enough SOL to withdraw. Your balance is ${(Number(currentBalance) / 1e9).toFixed(4)} SOL ` +
+        `but you need ${(Number(amount) / 1e9).toFixed(4)} SOL plus a small fee reserve. ` +
+        `Deposit more SOL or reduce the withdrawal amount.`,
       );
     }
 
