@@ -86,6 +86,10 @@ async function getUnclaimedFees(mint: string): Promise<bigint> {
 
 /**
  * Claim fees for a specific token by calling the pump.fun distribute instruction.
+ * 
+ * The SDK's distributeCreatorFees() requires named params:
+ *   { mint, sharingConfig, sharingConfigAddress }
+ * We must first fetch and decode the sharing config PDA.
  */
 async function claimFeesForToken(
   tokenAddress: string,
@@ -95,33 +99,44 @@ async function claimFeesForToken(
   const protocolWallet = getProtocolWallet();
   const mintPubkey = new PublicKey(tokenAddress);
 
-  // Check if sharing config exists
-  const hasConfig = await hasSharingConfig(tokenAddress);
-  if (!hasConfig) {
-    console.log(`${PREFIX} No sharing config for ${tokenSymbol} — skipping`);
-    return null;
-  }
-
-  // Get balance before
-  const balBefore = await getSolBalance(PROTOCOL_WALLET);
-
   try {
-    // Build the distribute instruction using the SDK
     const pumpSdk = new PumpSdk(connection as any);
 
-    // Try distributeCreatorFeesV2 first (for newer tokens)
+    // Step 1: Fetch and decode the sharing config
+    const sharingConfigAddress = feeSharingConfigPda(mintPubkey);
+    const sharingAccountInfo = await connection.getAccountInfo(sharingConfigAddress);
+
+    if (!sharingAccountInfo) {
+      console.log(`${PREFIX} No sharing config for ${tokenSymbol} — skipping`);
+      return null;
+    }
+
+    const sharingConfig = pumpSdk.decodeSharingConfig(sharingAccountInfo);
+
+    // Verify protocol wallet is a shareholder
+    const isOurToken = sharingConfig.shareholders.some(
+      (sh: any) => sh.address.toBase58() === PROTOCOL_WALLET,
+    );
+    if (!isOurToken) {
+      console.log(`${PREFIX} Protocol wallet not a shareholder for ${tokenSymbol} — skipping`);
+      return null;
+    }
+
+    // Step 2: Get SOL balance before claiming
+    const balBefore = await connection.getBalance(new PublicKey(PROTOCOL_WALLET));
+
+    // Step 3: Build the distribute instruction with correct params
     let ix;
     try {
-      ix = await pumpSdk.distributeCreatorFeesV2(mintPubkey);
-    } catch {
-      // Fall back to v1
-      try {
-        ix = await pumpSdk.distributeCreatorFees(mintPubkey);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.log(`${PREFIX} Cannot build claim ix for ${tokenSymbol}: ${msg}`);
-        return null;
-      }
+      ix = await pumpSdk.distributeCreatorFees({
+        mint: mintPubkey,
+        sharingConfig: sharingConfig as any,
+        sharingConfigAddress,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`${PREFIX} Cannot build claim ix for ${tokenSymbol}: ${msg}`);
+      return null;
     }
 
     if (!ix) {
@@ -129,7 +144,7 @@ async function claimFeesForToken(
       return null;
     }
 
-    // Build and send the transaction
+    // Step 4: Build and send the transaction
     const tx = new Transaction();
     if (Array.isArray(ix)) {
       for (const i of ix) tx.add(i);
@@ -147,14 +162,15 @@ async function claimFeesForToken(
       maxRetries: 3,
     });
 
-    // Wait a moment then check balance delta
+    // Step 5: Measure balance delta
     await new Promise((r) => setTimeout(r, 3000));
-    const balAfter = await getSolBalance(PROTOCOL_WALLET);
-    const feesClaimed = balAfter > balBefore ? balAfter - balBefore : BigInt(0);
+    const balAfter = await connection.getBalance(new PublicKey(PROTOCOL_WALLET));
+    const deltaLamports = balAfter - balBefore;
+    const feesClaimed = deltaLamports > 0 ? BigInt(deltaLamports) : BigInt(0);
 
     if (feesClaimed > BigInt(0)) {
       console.log(
-        `${PREFIX} ✅ Claimed ${formatSol(feesClaimed)} SOL from ${tokenSymbol} (tx: ${txSignature})`,
+        `${PREFIX} ✅ Claimed ${Number(feesClaimed) / 1e9} SOL from ${tokenSymbol} (tx: ${txSignature})`,
       );
     } else {
       console.log(`${PREFIX} Claim tx sent for ${tokenSymbol} but 0 SOL received (tx: ${txSignature})`);
