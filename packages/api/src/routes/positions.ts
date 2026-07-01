@@ -47,7 +47,9 @@ router.post(
     try {
       const authReq = req as AuthenticatedRequest;
       const wallet = authReq.wallet!;
-      const { tokenAddress, userCapitalLamports, leverage, slippageBps } = req.body;
+      const { tokenAddress, leverage, slippageBps } = req.body;
+      // Accept both field names — frontend sends capitalLamports
+      const userCapitalLamports = req.body.userCapitalLamports ?? req.body.capitalLamports;
 
       // Validate required fields
       if (!tokenAddress || userCapitalLamports === undefined || leverage === undefined) {
