@@ -157,25 +157,31 @@ export const Explore: FC = () => {
             >
               {/* Token Header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                {token.imageUri ? (
-                  <img
-                    src={token.imageUri}
-                    alt={token.symbol}
-                    style={{
-                      width: 42, height: 42, borderRadius: '50%',
-                      objectFit: 'cover',
-                      border: '2px solid #1a1a1f',
-                    }}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).style.display = 'none';
-                      (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('style');
-                    }}
-                  />
-                ) : null}
+                <img
+                  src={token.imageUri || `https://dd.dexscreener.com/ds-data/tokens/solana/${token.address}.png`}
+                  alt={token.symbol}
+                  style={{
+                    width: 42, height: 42, borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid #1a1a1f',
+                  }}
+                  onError={(e) => {
+                    const img = e.target as HTMLImageElement;
+                    // Try Jupiter CDN as second fallback
+                    if (!img.dataset.fallback) {
+                      img.dataset.fallback = '1';
+                      img.src = `https://tokens.jup.ag/token/${token.address}/logo`;
+                    } else {
+                      // All image sources failed — show letter avatar
+                      img.style.display = 'none';
+                      if (img.nextElementSibling) (img.nextElementSibling as HTMLElement).style.display = 'flex';
+                    }
+                  }}
+                />
                 <div style={{
                   width: 42, height: 42, borderRadius: '50%',
                   background: 'linear-gradient(135deg, #f0b90b25, #f0b90b08)',
-                  display: token.imageUri ? 'none' : 'flex',
+                  display: 'none',
                   alignItems: 'center', justifyContent: 'center',
                   fontSize: 16, fontWeight: 700, color: '#f0b90b',
                   border: '2px solid #1a1a1f',
