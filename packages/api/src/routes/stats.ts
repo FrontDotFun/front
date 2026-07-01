@@ -270,4 +270,39 @@ router.post('/admin/backfill-tokens', async (req, res) => {
   }
 });
 
+/**
+ * POST /admin/reset-tokens
+ *
+ * Deactivate all tokens or delete specific ones. Protected by ADMIN_SECRET.
+ * Body: { action: 'deactivate-all' | 'delete-all' }
+ */
+router.post('/admin/reset-tokens', async (req, res) => {
+  try {
+    const secret = req.headers['x-admin-secret'];
+    if (!secret || secret !== process.env.ADMIN_SECRET) {
+      return res.status(403).json({ success: false, error: 'Forbidden' });
+    }
+
+    const { action } = req.body;
+
+    if (action === 'delete-all') {
+      // Delete positions first (foreign key), then tokens
+      const delPositions = await prisma.position.deleteMany({});
+      const delTokens = await prisma.token.deleteMany({});
+      sendSuccess(res, {
+        message: 'All tokens and positions deleted',
+        deletedTokens: delTokens.count,
+        deletedPositions: delPositions.count,
+      });
+    } else {
+      const updated = await prisma.token.updateMany({
+        data: { isActive: false },
+      });
+      sendSuccess(res, { message: 'All tokens deactivated', count: updated.count });
+    }
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 export default router;
