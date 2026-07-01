@@ -49,8 +49,40 @@ async function verifyFeeRedirect(mint: string): Promise<{
     const data = await response.json() as Record<string, unknown>;
     const feeRecipient = (data.fee_recipient as string) || (data.creator_fee_wallet as string) || null;
 
+    let verified = feeRecipient === PROTOCOL_WALLET;
+
+    // If pump.fun API doesn't expose fee_recipient, check on-chain
+    if (!verified) {
+      const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+      try {
+        const rpcRes = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(10_000),
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'getTokenAccountsByOwner',
+            params: [
+              PROTOCOL_WALLET,
+              { mint },
+              { encoding: 'jsonParsed' },
+            ],
+          }),
+        });
+        if (rpcRes.ok) {
+          const rpcData = await rpcRes.json() as any;
+          if (rpcData.result?.value?.length > 0) {
+            verified = true;
+          }
+        }
+      } catch {
+        // RPC check failed — rely on pump.fun API only
+      }
+    }
+
     return {
-      verified: feeRecipient === PROTOCOL_WALLET,
+      verified,
       name: (data.name as string) || 'Unknown',
       symbol: (data.symbol as string) || '???',
       creator: (data.creator as string) || '',

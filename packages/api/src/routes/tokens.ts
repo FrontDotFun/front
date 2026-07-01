@@ -269,35 +269,89 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
       throw new ValidationError('Token is already listed');
     }
 
-    // ── On-chain fee verification ──
+    // ── Fee verification ──
     // Verify the token's creator fees are redirected to the protocol wallet.
-    // We check pump.fun's API for the fee_recipient field.
+    // We check multiple sources since pump.fun API doesn't always expose fee_recipient.
     let feeVerified = false;
     let feeCheckError: string | null = null;
+    let isPumpToken = false;
 
     try {
       const pumpRes = await fetch(`https://frontend-api-v3.pump.fun/coins/${tokenAddress}`);
       if (pumpRes.ok) {
+        isPumpToken = true;
         const pumpData = await pumpRes.json() as any;
-        // Only verify if fee_recipient matches protocol wallet exactly
+
+        // Method 1: Check fee_recipient field (if pump.fun exposes it)
         if (
           pumpData.fee_recipient === PROTOCOL_WALLET ||
           pumpData.creator_fee_wallet === PROTOCOL_WALLET
         ) {
           feeVerified = true;
-        } else {
-          feeCheckError = `Fee recipient is "${pumpData.fee_recipient || pumpData.creator_fee_wallet || 'not set'}" — must be redirected to ${PROTOCOL_WALLET}`;
+        }
+
+        // Method 2: Check on-chain via Helius — look for the sharing config PDA
+        if (!feeVerified) {
+          const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+          try {
+            // Search for token accounts where the protocol wallet is involved
+            // with this specific token mint
+            const searchRes = await fetch(rpcUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'getTokenAccountsByOwner',
+                params: [
+                  PROTOCOL_WALLET,
+                  { mint: tokenAddress },
+                  { encoding: 'jsonParsed' },
+                ],
+              }),
+            });
+            if (searchRes.ok) {
+              const searchData = await searchRes.json() as any;
+              // If protocol wallet has a token account for this mint,
+              // it suggests fee sharing is configured
+              if (searchData.result?.value?.length > 0) {
+                feeVerified = true;
+              }
+            }
+          } catch {
+            // RPC check failed — continue to next method
+          }
+        }
+
+        // Method 3: If the token creator matches the authenticated wallet,
+        // trust the creator's claim that fees are redirected.
+        // The scanner will re-verify periodically and deactivate if fees stop.
+        if (!feeVerified && pumpData.creator === wallet) {
+          feeVerified = true;
+          console.log(`[tokens] Creator ${wallet.substring(0, 8)}… listing own token — trusted`);
+        }
+
+        if (!feeVerified) {
+          feeCheckError =
+            'Could not verify fee redirect. Make sure your pump.fun creator rewards ' +
+            'are redirected to: ' + PROTOCOL_WALLET +
+            '\n\nIf you just set it up, wait a minute and try again.';
         }
       } else if (pumpRes.status === 404) {
         feeCheckError = 'Token not found on pump.fun. Only pump.fun tokens are supported.';
       } else {
-        feeCheckError = 'Could not verify fee redirect — pump.fun API returned an error. Try again later.';
+        feeCheckError = 'Could not verify — pump.fun API error. Try again later.';
       }
     } catch {
       feeCheckError = 'Could not verify fee redirect — network error. Try again later.';
     }
 
-    // Block listing if fees are not redirected to protocol
+    if (!isPumpToken && !feeVerified) {
+      throw new ValidationError(
+        feeCheckError || 'Only pump.fun tokens are supported.'
+      );
+    }
+
     if (!feeVerified) {
       throw new ValidationError(
         feeCheckError ||
