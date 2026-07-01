@@ -2,185 +2,241 @@
 // FRONT PROTOCOL — Fee Claimer Worker
 // ──────────────────────────────────────────────
 //
-// Tracks incoming creator fees from pump.fun tokens whose fee sharing
-// is directed to the protocol wallet. Pump.fun sends fees directly as
-// SOL to the protocol wallet — no "claim" instruction needed.
+// Claims creator fees from pump.fun tokens using the official Pump SDK.
+// Fees accumulate on-chain and need to be claimed via a distribute
+// instruction. This worker handles that automatically.
 //
-// This worker:
-//   1. Checks recent transactions on the protocol wallet
-//   2. Identifies fee deposits (incoming SOL transfers)
-//   3. Records them in the database (FeeClaim + PoolLedger)
+// Uses: @pump-fun/pump-sdk for instruction building
+//       PumpSdk.distributeCreatorFees() or distributeCreatorFeesV2()
 //
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
 import { LAMPORTS_PER_SOL, formatSol } from '@front-protocol/core';
-import { getSolBalance, getProtocolWallet, getConnection, PublicKey } from '@front-protocol/solana';
+import { getConnection, getProtocolWallet, PublicKey, getSolBalance } from '@front-protocol/solana';
 import { redisConnection, QUEUE_NAMES, feeClaimsQueue } from './queues.js';
+import {
+  PumpSdk,
+  feeSharingConfigPda,
+  creatorVaultPda,
+  bondingCurvePda,
+} from '@pump-fun/pump-sdk';
+import {
+  Transaction,
+  sendAndConfirmTransaction,
+} from '@solana/web3.js';
 
 const PREFIX = '[fee-claimer]';
 const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || '2uNqHvi3RrkFaFmtBM2KT9eWBDEqoj2eomL97A2v9hoM';
 
+// Minimum claim threshold (0.001 SOL)
+const MIN_CLAIM_LAMPORTS = BigInt(1_000_000);
+
 interface FeeClaimJobData {
-  /** When omitted, processes all active tokens */
   tokenId?: number;
 }
 
 /**
- * Process fee tracking job: check protocol wallet for recent incoming
- * transactions and record any new fee income.
+ * Check if a token has a fee sharing config on-chain.
+ */
+async function hasSharingConfig(mint: string): Promise<boolean> {
+  try {
+    const connection = getConnection();
+    const mintPubkey = new PublicKey(mint);
+    const sharingPda = feeSharingConfigPda(mintPubkey);
+    const info = await connection.getAccountInfo(sharingPda);
+    return info !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get the unclaimed fee balance for a token's creator vault.
+ */
+async function getUnclaimedFees(mint: string): Promise<bigint> {
+  try {
+    const connection = getConnection();
+    const mintPubkey = new PublicKey(mint);
+
+    // Check bonding curve balance (fees accumulate here for non-graduated tokens)
+    const bcPda = bondingCurvePda(mintPubkey);
+    const bcInfo = await connection.getAccountInfo(bcPda);
+
+    // Also check creator vault PDA
+    const cvPda = creatorVaultPda(mintPubkey);
+    const cvInfo = await connection.getAccountInfo(cvPda);
+
+    let totalUnclaimed = BigInt(0);
+    if (bcInfo) {
+      // The bonding curve account holds the reserves + fees
+      // We can't easily separate fees from reserves here,
+      // so we'll try the distribute instruction and see what we get
+      totalUnclaimed += BigInt(bcInfo.lamports);
+    }
+    if (cvInfo) {
+      totalUnclaimed += BigInt(cvInfo.lamports);
+    }
+
+    return totalUnclaimed;
+  } catch {
+    return BigInt(0);
+  }
+}
+
+/**
+ * Claim fees for a specific token by calling the pump.fun distribute instruction.
+ */
+async function claimFeesForToken(
+  tokenAddress: string,
+  tokenSymbol: string,
+): Promise<{ txSignature: string; feesClaimed: bigint } | null> {
+  const connection = getConnection();
+  const protocolWallet = getProtocolWallet();
+  const mintPubkey = new PublicKey(tokenAddress);
+
+  // Check if sharing config exists
+  const hasConfig = await hasSharingConfig(tokenAddress);
+  if (!hasConfig) {
+    console.log(`${PREFIX} No sharing config for ${tokenSymbol} — skipping`);
+    return null;
+  }
+
+  // Get balance before
+  const balBefore = await getSolBalance(PROTOCOL_WALLET);
+
+  try {
+    // Build the distribute instruction using the SDK
+    const pumpSdk = new PumpSdk(connection as any);
+
+    // Try distributeCreatorFeesV2 first (for newer tokens)
+    let ix;
+    try {
+      ix = await pumpSdk.distributeCreatorFeesV2(mintPubkey);
+    } catch {
+      // Fall back to v1
+      try {
+        ix = await pumpSdk.distributeCreatorFees(mintPubkey);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.log(`${PREFIX} Cannot build claim ix for ${tokenSymbol}: ${msg}`);
+        return null;
+      }
+    }
+
+    if (!ix) {
+      console.log(`${PREFIX} No claim instruction generated for ${tokenSymbol}`);
+      return null;
+    }
+
+    // Build and send the transaction
+    const tx = new Transaction();
+    if (Array.isArray(ix)) {
+      for (const i of ix) tx.add(i);
+    } else {
+      tx.add(ix);
+    }
+
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+    tx.recentBlockhash = blockhash;
+    tx.lastValidBlockHeight = lastValidBlockHeight;
+    tx.feePayer = protocolWallet.publicKey;
+
+    const txSignature = await sendAndConfirmTransaction(connection, tx, [protocolWallet], {
+      commitment: 'confirmed',
+      maxRetries: 3,
+    });
+
+    // Wait a moment then check balance delta
+    await new Promise((r) => setTimeout(r, 3000));
+    const balAfter = await getSolBalance(PROTOCOL_WALLET);
+    const feesClaimed = balAfter > balBefore ? balAfter - balBefore : BigInt(0);
+
+    if (feesClaimed > BigInt(0)) {
+      console.log(
+        `${PREFIX} ✅ Claimed ${formatSol(feesClaimed)} SOL from ${tokenSymbol} (tx: ${txSignature})`,
+      );
+    } else {
+      console.log(`${PREFIX} Claim tx sent for ${tokenSymbol} but 0 SOL received (tx: ${txSignature})`);
+    }
+
+    return { txSignature, feesClaimed };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`${PREFIX} Claim failed for ${tokenSymbol}: ${msg}`);
+    return null;
+  }
+}
+
+/**
+ * Process fee claim job: iterate all active tokens and claim fees.
  */
 async function processFeeClaimJob(job: Job<FeeClaimJobData>): Promise<void> {
   const startTime = Date.now();
-  console.log(`${PREFIX} Starting fee tracking run (job ${job.id})`);
+  console.log(`${PREFIX} Starting fee claim run (job ${job.id})`);
 
   try {
-    // Get current protocol wallet balance
-    const currentBalance = await getSolBalance(PROTOCOL_WALLET);
-    console.log(`${PREFIX} Protocol wallet balance: ${formatSol(currentBalance)} SOL`);
-
-    // Get the last recorded balance from the database
-    const lastRecord = await prisma.poolLedger.findFirst({
-      where: { type: 'fee_balance_snapshot' },
-      orderBy: { createdAt: 'desc' },
-      select: { amount: true, createdAt: true },
-    });
-
-    const lastBalance = lastRecord ? BigInt(lastRecord.amount.toString()) : BigInt(0);
-
-    // Check recent transactions on the protocol wallet for incoming transfers
-    const connection = getConnection();
-    const walletPubkey = new PublicKey(PROTOCOL_WALLET);
-
-    // Get recent signatures (last 20 transactions)
-    const signatures = await connection.getSignaturesForAddress(walletPubkey, {
-      limit: 20,
-    });
-
-    // Find the last processed transaction signature
-    const lastProcessedTx = await prisma.feeClaim.findFirst({
-      orderBy: { claimedAt: 'desc' },
-      select: { txSignature: true },
-    });
-    const lastProcessedSig = lastProcessedTx?.txSignature;
-
-    let newFeesRecorded = 0;
-    let totalNewFees = BigInt(0);
-
-    // Get active tokens for attribution
-    const activeTokens = await prisma.token.findMany({
-      where: { isActive: true },
+    const tokens = await prisma.token.findMany({
+      where: job.data.tokenId ? { id: job.data.tokenId, isActive: true } : { isActive: true },
       select: { id: true, address: true, symbol: true, totalFeesClaimed: true },
     });
 
-    for (const sig of signatures) {
-      // Stop if we hit an already-processed transaction
-      if (sig.signature === lastProcessedSig) break;
+    if (tokens.length === 0) {
+      console.log(`${PREFIX} No active tokens to process`);
+      return;
+    }
 
-      // Skip failed transactions
-      if (sig.err) continue;
+    console.log(`${PREFIX} Processing ${tokens.length} active token(s)`);
 
+    let totalClaimed = BigInt(0);
+    let claimsExecuted = 0;
+
+    for (const token of tokens) {
       try {
-        const tx = await connection.getParsedTransaction(sig.signature, {
-          commitment: 'confirmed',
-          maxSupportedTransactionVersion: 0,
-        });
+        const result = await claimFeesForToken(token.address, token.symbol ?? 'Unknown');
+        if (!result || result.feesClaimed <= BigInt(0)) continue;
 
-        if (!tx?.meta) continue;
-
-        // Check if protocol wallet received SOL in this transaction
-        const accountKeys = tx.transaction.message.accountKeys;
-        const walletIndex = accountKeys.findIndex(
-          (key) => key.pubkey.toBase58() === PROTOCOL_WALLET
-        );
-
-        if (walletIndex === -1) continue;
-
-        const preBalance = tx.meta.preBalances[walletIndex] ?? 0;
-        const postBalance = tx.meta.postBalances[walletIndex] ?? 0;
-        const balanceChange = postBalance - preBalance;
-
-        // Only track incoming SOL (positive balance change)
-        if (balanceChange <= 0) continue;
-
-        const incomingLamports = BigInt(balanceChange);
-
-        // Skip very small amounts (dust, rent)
-        if (incomingLamports < BigInt(LAMPORTS_PER_SOL) / BigInt(10000)) continue;
-
-        // Check if we already recorded this transaction
-        const existing = await prisma.feeClaim.findFirst({
-          where: { txSignature: sig.signature },
-        });
-        if (existing) continue;
-
-        // Attribute to the first active token (simplified — in production
-        // you'd parse the transaction to determine which token's trade generated the fee)
-        const targetToken = activeTokens.length > 0 ? activeTokens[0] : null;
-
-        // Record the fee
+        // Record in database
         await prisma.$transaction([
           prisma.feeClaim.create({
             data: {
-              tokenId: targetToken?.id ?? 0,
-              amount: incomingLamports,
-              txSignature: sig.signature,
+              tokenId: token.id,
+              amount: result.feesClaimed,
+              txSignature: result.txSignature,
             },
           }),
-          // Update token's total fees if attributable
-          ...(targetToken ? [
-            prisma.token.update({
-              where: { id: targetToken.id },
-              data: {
-                totalFeesClaimed: targetToken.totalFeesClaimed + incomingLamports,
-              },
-            }),
-          ] : []),
-          // Add pool ledger entry
+          prisma.token.update({
+            where: { id: token.id },
+            data: {
+              totalFeesClaimed: token.totalFeesClaimed + result.feesClaimed,
+            },
+          }),
           prisma.poolLedger.create({
             data: {
               type: 'fee_claim',
-              amount: incomingLamports,
-              referenceId: targetToken?.id ?? 0,
-              txSignature: sig.signature,
+              amount: result.feesClaimed,
+              referenceId: token.id,
+              txSignature: result.txSignature,
             },
           }),
         ]);
 
-        totalNewFees += incomingLamports;
-        newFeesRecorded++;
-
-        console.log(
-          `${PREFIX} ✅ Recorded fee: ${formatSol(incomingLamports)} SOL ` +
-          `(tx: ${sig.signature.substring(0, 16)}…) ` +
-          `${targetToken ? `→ ${targetToken.symbol}` : ''}`,
-        );
+        totalClaimed += result.feesClaimed;
+        claimsExecuted++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`${PREFIX} Error processing tx ${sig.signature.substring(0, 16)}…: ${msg}`);
-        continue;
+        console.error(`${PREFIX} Error claiming for ${token.symbol}: ${msg}`);
       }
     }
 
-    // Save a balance snapshot for tracking
-    await prisma.poolLedger.create({
-      data: {
-        type: 'fee_balance_snapshot',
-        amount: currentBalance,
-        referenceId: 0,
-        txSignature: `snapshot-${Date.now()}`,
-      },
-    });
-
     const elapsed = Date.now() - startTime;
     console.log(
-      `${PREFIX} Fee tracking complete: ${newFeesRecorded} new fee(s), ` +
-      `${formatSol(totalNewFees)} SOL recorded, ` +
-      `wallet balance: ${formatSol(currentBalance)} SOL (${elapsed}ms)`,
+      `${PREFIX} Fee claim run complete: ${claimsExecuted} claim(s), ` +
+      `${formatSol(totalClaimed)} SOL total (${elapsed}ms)`,
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`${PREFIX} Fatal error in fee tracking job: ${msg}`);
+    console.error(`${PREFIX} Fatal error in fee claim job: ${msg}`);
     throw err;
   }
 }
@@ -195,10 +251,7 @@ export const feeClaimerWorker = new Worker<FeeClaimJobData>(
   {
     connection: redisConnection,
     concurrency: 1,
-    limiter: {
-      max: 1,
-      duration: 5000,
-    },
+    limiter: { max: 1, duration: 5000 },
   },
 );
 
@@ -224,21 +277,18 @@ export async function scheduleFeeClaimer(): Promise<void> {
     await feeClaimsQueue.removeRepeatableByKey(job.key);
   }
 
-  // Run every 15 minutes to track incoming fees
-  const intervalMs = 15 * 60 * 1000;
+  // Run every 30 minutes
+  const intervalMs = 30 * 60 * 1000;
 
   await feeClaimsQueue.add(
-    'track-fees',
+    'claim-all-fees',
     {},
     {
       repeat: { every: intervalMs },
       attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 30_000,
-      },
+      backoff: { type: 'exponential', delay: 30_000 },
     },
   );
 
-  console.log(`${PREFIX} Scheduled fee tracking every 15 minutes`);
+  console.log(`${PREFIX} Scheduled fee claims every 30 minutes`);
 }

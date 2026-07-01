@@ -14,6 +14,8 @@
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
 import { determineTier } from '@front-protocol/core';
+import { getConnection, PublicKey } from '@front-protocol/solana';
+import { feeSharingConfigPda, PumpSdk } from '@pump-fun/pump-sdk';
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[listing-scanner]';
@@ -25,8 +27,10 @@ interface ListingScanJobData {
 }
 
 /**
- * Verify a token's fee_recipient via pump.fun API.
- * Returns the full token data if fees are redirected to protocol, null otherwise.
+ * Verify a token's fee redirect via on-chain sharing config + pump.fun API.
+ *
+ * Uses the pump SDK to derive the feeSharingConfigPda and decode it.
+ * If the protocol wallet is listed as a shareholder → verified.
  */
 async function verifyFeeRedirect(mint: string): Promise<{
   verified: boolean;
@@ -38,46 +42,71 @@ async function verifyFeeRedirect(mint: string): Promise<{
   complete: boolean;
   feeRecipient: string | null;
 } | null> {
+  let verified = false;
+  let feeRecipient: string | null = null;
+
+  // ── Method 1: Check on-chain sharing config via Pump SDK ──
+  try {
+    const connection = getConnection();
+    const mintPubkey = new PublicKey(mint);
+    const sharingPda = feeSharingConfigPda(mintPubkey);
+    const sharingInfo = await connection.getAccountInfo(sharingPda);
+
+    if (sharingInfo) {
+      // Decode the sharing config to find shareholders
+      try {
+        const pumpSdk = new PumpSdk(connection as any);
+        const config = pumpSdk.decodeSharingConfig(sharingInfo);
+        // config.shareholders is an array of { address, shareBps }
+        const shareholders = (config as any).shareholders || (config as any).shares || [];
+        for (const sh of shareholders) {
+          const addr = sh.address?.toBase58?.() || sh.wallet?.toBase58?.() || String(sh.address || sh.wallet || '');
+          if (addr === PROTOCOL_WALLET) {
+            verified = true;
+            feeRecipient = PROTOCOL_WALLET;
+            break;
+          }
+        }
+        if (!verified) {
+          // Sharing config exists but protocol wallet is not a shareholder
+          feeRecipient = shareholders.length > 0
+            ? (shareholders[0].address?.toBase58?.() || String(shareholders[0].address || ''))
+            : 'unknown';
+        }
+      } catch (decodeErr) {
+        // Can't decode but account exists — might mean config is there
+        console.warn(`${PREFIX} Could not decode sharing config for ${mint}: ${decodeErr}`);
+      }
+    }
+  } catch {
+    // On-chain check failed — fallback to API
+  }
+
+  // ── Method 2: Pump.fun API check ──
   try {
     const response = await fetch(`https://frontend-api-v3.pump.fun/coins/${mint}`, {
       signal: AbortSignal.timeout(10_000),
       headers: { Accept: 'application/json' },
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      // If we already verified on-chain, return that
+      if (verified) {
+        return { verified, name: 'Unknown', symbol: '???', creator: '', imageUri: '', marketCap: 0, complete: false, feeRecipient };
+      }
+      return null;
+    }
 
     const data = await response.json() as Record<string, unknown>;
-    const feeRecipient = (data.fee_recipient as string) || (data.creator_fee_wallet as string) || null;
 
-    let verified = feeRecipient === PROTOCOL_WALLET;
-
-    // If pump.fun API doesn't expose fee_recipient, check on-chain
+    // Check API fields for fee_recipient (in case pump.fun adds it)
     if (!verified) {
-      const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-      try {
-        const rpcRes = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(10_000),
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'getTokenAccountsByOwner',
-            params: [
-              PROTOCOL_WALLET,
-              { mint },
-              { encoding: 'jsonParsed' },
-            ],
-          }),
-        });
-        if (rpcRes.ok) {
-          const rpcData = await rpcRes.json() as any;
-          if (rpcData.result?.value?.length > 0) {
-            verified = true;
-          }
-        }
-      } catch {
-        // RPC check failed — rely on pump.fun API only
+      const apiRecipient = (data.fee_recipient as string) || (data.creator_fee_wallet as string) || null;
+      if (apiRecipient === PROTOCOL_WALLET) {
+        verified = true;
+        feeRecipient = PROTOCOL_WALLET;
+      } else if (apiRecipient) {
+        feeRecipient = apiRecipient;
       }
     }
 
@@ -87,11 +116,14 @@ async function verifyFeeRedirect(mint: string): Promise<{
       symbol: (data.symbol as string) || '???',
       creator: (data.creator as string) || '',
       imageUri: (data.image_uri as string) || '',
-      marketCap: (data.usdMarketCap as number) || (data.market_cap as number) || 0,
+      marketCap: (data.usdMarketCap as number) || (data.usd_market_cap as number) || 0,
       complete: (data.complete as boolean) || false,
       feeRecipient,
     };
   } catch {
+    if (verified) {
+      return { verified, name: 'Unknown', symbol: '???', creator: '', imageUri: '', marketCap: 0, complete: false, feeRecipient };
+    }
     return null;
   }
 }

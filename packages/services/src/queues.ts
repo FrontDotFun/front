@@ -18,6 +18,7 @@ export const QUEUE_NAMES = {
   PRICE_CHECK: 'price-check',
   LISTING_SCAN: 'listing-scan',
   INSURANCE_FUND: 'insurance-fund',
+  TOKEN_DISCOVERY: 'token-discovery',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];
@@ -66,6 +67,7 @@ export const creatorPayoutsQueue = new Queue(QUEUE_NAMES.CREATOR_PAYOUTS, defaul
 export const priceCheckQueue = new Queue(QUEUE_NAMES.PRICE_CHECK, defaultQueueOpts);
 export const listingScanQueue = new Queue(QUEUE_NAMES.LISTING_SCAN, defaultQueueOpts);
 export const insuranceFundQueue = new Queue(QUEUE_NAMES.INSURANCE_FUND, defaultQueueOpts);
+export const tokenDiscoveryQueue = new Queue(QUEUE_NAMES.TOKEN_DISCOVERY, defaultQueueOpts);
 
 /** Map of queue name → Queue instance for dynamic access */
 const queueMap: Record<QueueName, Queue> = {
@@ -77,6 +79,7 @@ const queueMap: Record<QueueName, Queue> = {
   [QUEUE_NAMES.PRICE_CHECK]: priceCheckQueue,
   [QUEUE_NAMES.LISTING_SCAN]: listingScanQueue,
   [QUEUE_NAMES.INSURANCE_FUND]: insuranceFundQueue,
+  [QUEUE_NAMES.TOKEN_DISCOVERY]: tokenDiscoveryQueue,
 };
 
 /** All queue instances for iteration (e.g. shutdown) */

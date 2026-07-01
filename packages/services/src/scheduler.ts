@@ -8,7 +8,7 @@
 
 import 'dotenv/config';
 import type { Worker } from 'bullmq';
-import { redisConnection, allQueues, listingScanQueue } from './queues.js';
+import { redisConnection, allQueues, listingScanQueue, tokenDiscoveryQueue } from './queues.js';
 import { feeClaimerWorker, scheduleFeeClaimer } from './fee-claimer.js';
 import { priceMonitorWorker, schedulePriceMonitor } from './price-monitor.js';
 import { positionCloserWorker } from './position-closer.js';
@@ -17,6 +17,7 @@ import { lockEngineWorker, scheduleLockUnlockChecker } from './lock-engine.js';
 import { creatorPayoutWorker } from './creator-payout.js';
 import { listingScannerWorker } from './listing-scanner.js';
 import { insuranceFundWorker } from './insurance-fund.js';
+import { tokenDiscoveryWorker } from './token-discovery.js';
 
 const PREFIX = '[scheduler]';
 
@@ -33,6 +34,7 @@ const allWorkers: { name: string; worker: Worker }[] = [
   { name: 'creator-payout', worker: creatorPayoutWorker },
   { name: 'listing-scanner', worker: listingScannerWorker },
   { name: 'insurance-fund', worker: insuranceFundWorker },
+  { name: 'token-discovery', worker: tokenDiscoveryWorker },
 ];
 
 // ──────────────────────────────────────────────
@@ -141,6 +143,18 @@ async function main(): Promise<void> {
     }
     await listingScanQueue.add('scan-listings', {}, {
       repeat: { every: 5 * 60 * 1000 },
+      attempts: 1,
+      removeOnComplete: { count: 10 },
+      removeOnFail: { count: 50 },
+    });
+
+    // Schedule token discovery every 10 minutes
+    const existingDiscovery = await tokenDiscoveryQueue.getRepeatableJobs();
+    for (const j of existingDiscovery) {
+      await tokenDiscoveryQueue.removeRepeatableByKey(j.key);
+    }
+    await tokenDiscoveryQueue.add('discover-tokens', {}, {
+      repeat: { every: 10 * 60 * 1000 },
       attempts: 1,
       removeOnComplete: { count: 10 },
       removeOnFail: { count: 50 },
