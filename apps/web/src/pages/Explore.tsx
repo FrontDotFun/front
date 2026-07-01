@@ -130,83 +130,112 @@ export const Explore: FC = () => {
           </div>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
           {displayTokens.map((token) => (
             <div
               key={token.address}
               className="token-card"
               onClick={() => handleTokenClick(token)}
               style={{
-                background: '#0a0a0a',
-                border: '1px solid #1a1a1a',
-                borderRadius: 14,
-                padding: '16px 18px',
+                background: 'linear-gradient(135deg, #0c0c0f 0%, #0a0a0d 100%)',
+                border: '1px solid #1a1a1f',
+                borderRadius: 16,
+                padding: '20px',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'all 0.25s ease',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#f0b90b30';
-                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.borderColor = '#f0b90b40';
+                e.currentTarget.style.transform = 'translateY(-3px)';
+                e.currentTarget.style.boxShadow = '0 8px 24px rgba(240, 185, 11, 0.06)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#1a1a1a';
+                e.currentTarget.style.borderColor = '#1a1a1f';
                 e.currentTarget.style.transform = 'none';
+                e.currentTarget.style.boxShadow = 'none';
               }}
             >
               {/* Token Header */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                {token.imageUri ? (
+                  <img
+                    src={token.imageUri}
+                    alt={token.symbol}
+                    style={{
+                      width: 42, height: 42, borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid #1a1a1f',
+                    }}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                      (e.target as HTMLImageElement).nextElementSibling?.removeAttribute('style');
+                    }}
+                  />
+                ) : null}
                 <div style={{
-                  width: 36, height: 36, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #f0b90b20, #f0b90b05)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 14, fontWeight: 700, color: '#f0b90b',
+                  width: 42, height: 42, borderRadius: '50%',
+                  background: 'linear-gradient(135deg, #f0b90b25, #f0b90b08)',
+                  display: token.imageUri ? 'none' : 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  fontSize: 16, fontWeight: 700, color: '#f0b90b',
+                  border: '2px solid #1a1a1f',
+                  flexShrink: 0,
                 }}>
                   {token.symbol?.charAt(0) || '?'}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{token.symbol}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>
+                      {token.symbol || 'Unknown'}
+                    </span>
                     {token.tier && tierBadge(token.tier)}
                   </div>
-                  <div style={{ fontSize: 11, color: '#666', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {token.name}
+                  <div style={{
+                    fontSize: 12, color: '#666', marginTop: 2,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {token.name || 'Unknown Token'}
                   </div>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', fontFamily: "'JetBrains Mono', monospace" }}>
+                {/* Price */}
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 600, color: '#fff',
+                    fontFamily: "'JetBrains Mono', monospace",
+                  }}>
                     {token.priceUsd != null
                       ? `$${token.priceUsd < 0.01 ? token.priceUsd.toExponential(2) : token.priceUsd.toFixed(4)}`
-                      : '--'}
+                      : ''}
                   </div>
-                  <div style={{ fontSize: 11 }}>
+                  <div style={{ fontSize: 12, marginTop: 2 }}>
                     {formatChange(token.priceChange24hPct)}
                   </div>
                 </div>
               </div>
 
-              {/* Stats */}
+              {/* Stats Row */}
               <div style={{
-                display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8,
-                paddingTop: 12, borderTop: '1px solid #111',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                paddingTop: 14, borderTop: '1px solid #141418',
               }}>
                 <div>
-                  <div style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>Tier</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc' }}>
-                    {token.tier || '--'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>Volume (Front)</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', fontFamily: "'JetBrains Mono', monospace" }}>
-                    {token.totalTradingVolume
+                  <div style={{ fontSize: 10, color: '#555', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Volume</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#ccc', fontFamily: "'JetBrains Mono', monospace" }}>
+                    {token.totalTradingVolume && token.totalTradingVolume !== '0'
                       ? `${formatSol(token.totalTradingVolume)} SOL`
-                      : '--'}
+                      : '—'}
                   </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: 10, color: '#555', marginBottom: 2 }}>Max Lev</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#ccc', fontFamily: "'JetBrains Mono', monospace" }}>
-                    {token.maxLeverage ? `${token.maxLeverage}x` : '--'}
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 10, color: '#555', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Max Leverage</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#f0b90b', fontFamily: "'JetBrains Mono', monospace" }}>
+                    {token.maxLeverage ? `${token.maxLeverage}x` : '—'}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: 10, color: '#555', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fee</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#ccc', fontFamily: "'JetBrains Mono', monospace" }}>
+                    {token.flatFeePct ? `${token.flatFeePct}%` : '—'}
                   </div>
                 </div>
               </div>

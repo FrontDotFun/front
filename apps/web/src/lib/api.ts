@@ -124,6 +124,7 @@ export interface TokenInfo {
   address: string;
   name: string;
   symbol: string;
+  imageUri?: string;
   tier: string;
   tierEmoji?: string;
   tierLabel?: string;
