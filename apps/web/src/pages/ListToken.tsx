@@ -14,7 +14,7 @@ const numStyle = {
   width: 28,
   height: 28,
   borderRadius: '50%',
-  background: 'var(--gold)',
+  background: '#f0b90b',
   color: '#000',
   display: 'flex',
   alignItems: 'center',
@@ -186,12 +186,13 @@ export const ListToken: FC = () => {
             padding: '12px 0',
             fontSize: '0.93rem',
             fontWeight: 600,
-            background: 'var(--gold)',
+            background: '#f0b90b',
             color: '#000',
             border: 'none',
             borderRadius: 'var(--radius-md)',
             cursor: loading ? 'wait' : 'pointer',
             opacity: loading ? 0.7 : 1,
+            width: '100%',
           }}
         >
           {loading ? 'Listing...' : 'List Token'}

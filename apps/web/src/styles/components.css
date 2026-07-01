@@ -45,6 +45,13 @@
   align-items: center;
   gap: 0;
   flex: 1;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.top-nav-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .top-nav-tab {
