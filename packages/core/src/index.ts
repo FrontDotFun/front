@@ -3,7 +3,7 @@
 // ──────────────────────────────────────────────
 
 // Types & constants
-export * from './types';
+export * from './types.js';
 
 // Pricing & tier logic
 export {
@@ -18,7 +18,7 @@ export {
   isValidLeverage,
   calculateProtocolCapital,
   calculatePositionSize,
-} from './pricing';
+} from './pricing.js';
 
 // P&L calculation
 export {
@@ -26,14 +26,14 @@ export {
   calculateLivePnLPercent,
   calculateMaxLoss,
   generateScenarios,
-} from './pnl';
+} from './pnl.js';
 
 // Revenue distribution
 export {
   splitRevenue,
   calculateFullDistribution,
   formatRevenueBreakdown,
-} from './revenue';
+} from './revenue.js';
 
 // Position management
 export {
@@ -42,8 +42,8 @@ export {
   shouldAutoClose,
   calculateExitPrice,
   timeRemainingMs,
-} from './position';
-export type { ValidationResult } from './position';
+} from './position.js';
+export type { ValidationResult } from './position.js';
 
 // Safety & risk
 export {
@@ -53,4 +53,4 @@ export {
   calculateInsuranceFundTarget,
   calculateInsuranceDeposit,
   validatePositionSafety,
-} from './safety';
+} from './safety.js';

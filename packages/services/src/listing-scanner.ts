@@ -16,6 +16,7 @@
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
+import { determineTier } from '@front-protocol/core';
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[listing-scanner]';
@@ -61,16 +62,7 @@ async function fetchTokenMetadata(mint: string): Promise<{
   }
 }
 
-/**
- * Determine the initial tier for a newly listed token.
- * This is conservative — tokens start at 'degen' and can be upgraded
- * by the price monitor when market data improves.
- */
-function determineInitialTier(marketCap: number, isBonded: boolean): string {
-  if (isBonded && marketCap >= 1_000_000) return 'bonded';
-  if (marketCap >= 100_000) return 'rising';
-  return 'degen';
-}
+
 
 /**
  * Process a listing scan job.
@@ -95,18 +87,64 @@ async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
       return;
     }
 
-    // Otherwise, run a full scan
-    // In production: iterate through on-chain sharing config PDAs
-    // For now: check if any known tokens are not yet listed
-    console.log(`${PREFIX} Full scan mode — checking for new listings`);
+    // Full scan mode: query recent Pump.fun token creations
+    console.log(`${PREFIX} Full scan mode — fetching latest tokens from Pump.fun`);
 
-    // SOLANA: This would use getProgramAccounts or a Geyser plugin to
-    // enumerate all sharing config PDAs owned by the Pump fee program,
-    // filter for ones pointing to our protocol wallet, and list any
-    // that aren't already in our database.
+    let latestTokens: Array<{ mint: string }> = [];
+
+    try {
+      const response = await fetch('https://frontend-api-v3.pump.fun/coins/latest', {
+        signal: AbortSignal.timeout(15_000),
+        headers: { Accept: 'application/json' },
+      });
+
+      if (!response.ok) {
+        console.error(`${PREFIX} Pump.fun API returned ${response.status} — skipping full scan`);
+        return;
+      }
+
+      const data = await response.json() as Array<Record<string, unknown>>;
+
+      if (!Array.isArray(data)) {
+        console.error(`${PREFIX} Unexpected response format from Pump.fun API`);
+        return;
+      }
+
+      latestTokens = data.map((t) => ({ mint: (t.mint as string) || '' })).filter((t) => t.mint);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`${PREFIX} Failed to fetch latest tokens from Pump.fun: ${msg}`);
+      return; // don't crash the worker
+    }
+
+    console.log(`${PREFIX} Fetched ${latestTokens.length} token(s) from Pump.fun`);
+
+    // Limit to processing 10 new tokens per scan to avoid overload
+    const MAX_NEW_PER_SCAN = 10;
+    let newListings = 0;
+
+    for (const token of latestTokens) {
+      if (newListings >= MAX_NEW_PER_SCAN) {
+        console.log(`${PREFIX} Reached max ${MAX_NEW_PER_SCAN} new listings per scan — stopping`);
+        break;
+      }
+
+      try {
+        const listed = await checkAndListToken(token.mint);
+        if (listed) {
+          newListings++;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`${PREFIX} Error processing token ${token.mint.substring(0, 8)}…: ${msg}`);
+        // continue to next token
+      }
+    }
 
     const elapsed = Date.now() - startTime;
-    console.log(`${PREFIX} Listing scan complete (${elapsed}ms)`);
+    console.log(
+      `${PREFIX} Listing scan complete: ${newListings} new token(s) listed (${elapsed}ms)`,
+    );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`${PREFIX} Listing scan error: ${msg}`);
@@ -150,7 +188,9 @@ async function checkAndListToken(mint: string): Promise<boolean> {
   }
 
   // Determine initial tier
-  const tier = determineInitialTier(metadata.marketCap, metadata.complete);
+  // Use core tier logic — estimate liquidity as 10% of marketCap since Pump.fun API doesn't provide it
+  const tierConfig = determineTier(metadata.marketCap, metadata.marketCap * 0.1, metadata.complete);
+  const tier = tierConfig ? tierConfig.tier : 'degen';
 
   // Auto-list the token
   await prisma.token.create({

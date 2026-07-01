@@ -14,6 +14,7 @@ import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
 import {
   LAMPORTS_PER_SOL,
+  formatSol,
   calculateInsuranceFundTarget,
   calculateInsuranceDeposit,
 } from '@front-protocol/core';
@@ -185,10 +186,4 @@ insuranceFundWorker.on('error', (err) => {
   console.error(`${PREFIX} Worker error: ${err.message}`);
 });
 
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
 
-function formatSol(lamports: bigint): string {
-  return (Number(lamports) / Number(LAMPORTS_PER_SOL)).toFixed(4);
-}

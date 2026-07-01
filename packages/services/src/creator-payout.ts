@@ -8,7 +8,7 @@
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL } from '@front-protocol/core';
+import { LAMPORTS_PER_SOL, formatSol } from '@front-protocol/core';
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[creator-payout]';
@@ -109,10 +109,4 @@ creatorPayoutWorker.on('error', (err) => {
   console.error(`${PREFIX} Worker error: ${err.message}`);
 });
 
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
 
-function formatSol(lamports: bigint): string {
-  return (Number(lamports) / Number(LAMPORTS_PER_SOL)).toFixed(4);
-}

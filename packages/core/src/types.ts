@@ -196,6 +196,11 @@ export const BPS = {
 /** Lamports per SOL */
 export const LAMPORTS_PER_SOL = 1_000_000_000n;
 
+/** Format lamports as SOL string for logging */
+export function formatSol(lamports: bigint): string {
+  return (Number(lamports) / Number(LAMPORTS_PER_SOL)).toFixed(4);
+}
+
 /** Max position duration in milliseconds (24 hours) */
 export const MAX_POSITION_DURATION_MS = 24 * 60 * 60 * 1000;
 

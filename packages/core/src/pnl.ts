@@ -26,7 +26,6 @@ import type { Tier } from './types.js';
  *
  * @param entryPrice - Price at which tokens were bought
  * @param exitPrice - Price at which tokens were sold
- * @param tokensBought - Number of tokens (in smallest unit)
  * @param userCapitalLamports - User's original collateral
  * @param protocolCapitalLamports - Protocol's co-invested capital
  * @param tier - Risk tier (for fee calculation)
@@ -34,18 +33,19 @@ import type { Tier } from './types.js';
 export function calculatePnL(
   entryPrice: number,
   exitPrice: number,
-  tokensBought: bigint,
   userCapitalLamports: bigint,
   protocolCapitalLamports: bigint,
   tier: Tier,
 ): PnLResult {
   const totalCapitalLamports = userCapitalLamports + protocolCapitalLamports;
 
-  // Calculate what the tokens are worth now relative to entry
-  const priceRatio = exitPrice / entryPrice;
-  const totalValueLamports = BigInt(
-    Math.floor(Number(totalCapitalLamports) * priceRatio)
-  );
+  // Calculate what the tokens are worth now relative to entry.
+  // Use fixed-point BigInt math with 1e18 scaling to avoid Number(bigint) precision loss.
+  const SCALE = 1_000_000_000_000_000_000n; // 1e18
+  const scaledExitPrice = BigInt(Math.round(exitPrice * 1e18));
+  const scaledEntryPrice = BigInt(Math.round(entryPrice * 1e18));
+  const totalValueLamports =
+    (totalCapitalLamports * scaledExitPrice) / scaledEntryPrice;
 
   // Total profit (can be negative)
   const totalProfitLamports = totalValueLamports - totalCapitalLamports;
@@ -87,7 +87,7 @@ export function calculatePnL(
     totalValueLamports,
     totalProfitLamports,
     isProfitable: true,
-    userGrossProfitLamports: userCashoutLamports,
+    userGrossProfitLamports: totalProfitLamports,
     userLockLamports,
     userCashoutLamports,
     protocolProfitShareLamports,

@@ -11,7 +11,10 @@ import { prisma } from '@front-protocol/database';
 import {
   calculatePnL,
   calculateFullDistribution,
+  splitRevenue,
+  calculateInsuranceDeposit,
   LAMPORTS_PER_SOL,
+  formatSol,
   type Tier,
   type PositionStatus,
 } from '@front-protocol/core';
@@ -26,6 +29,7 @@ import {
   burnQueue,
   lockQueue,
   creatorPayoutsQueue,
+  insuranceFundQueue,
 } from './queues.js';
 
 const PREFIX = '[position-closer]';
@@ -131,25 +135,26 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
 
     // Calculate exit price from actual swap result
     const exitPrice = Number(solReceived) / Number(tokensBought);
-    const positionSize = userCapitalLamports + protocolCapitalLamports;
-
-    // Real P&L: solReceived - totalCapitalDeployed
-    const totalProfitLamports = solReceived - positionSize;
-    const isProfitable = totalProfitLamports > 0n;
     const flatFeeLamports = position.flatFee;
 
-    // Revenue distribution from flat fee
-    const creatorPayoutLamports = (flatFeeLamports * 30n) / 100n;
-    const burnAmountLamports = (flatFeeLamports * 20n) / 100n;
-    const poolReturnLamports = flatFeeLamports - creatorPayoutLamports - burnAmountLamports;
+    // Use core PnL calculation
+    const pnl = calculatePnL(
+      entryPrice,
+      exitPrice,
+      userCapitalLamports,
+      protocolCapitalLamports,
+      tier,
+    );
+    const isProfitable = pnl.isProfitable;
+    const totalProfitLamports = pnl.totalProfitLamports;
+    const userCashProfitLamports = pnl.userCashoutLamports;
+    const userLockLamports = pnl.userLockLamports;
 
-    // User profit distribution
-    let userCashProfitLamports = 0n;
-    let userLockLamports = 0n;
-    if (isProfitable) {
-      userCashProfitLamports = (totalProfitLamports * 70n) / 100n;
-      userLockLamports = totalProfitLamports - userCashProfitLamports;
-    }
+    // Use core revenue split
+    const revenue = splitRevenue(flatFeeLamports);
+    const creatorPayoutLamports = revenue.creatorPayoutLamports;
+    const burnAmountLamports = revenue.burnAmountLamports;
+    const poolReturnLamports = revenue.poolReturnLamports;
 
     // What goes back to user
     const userReturnLamports = isProfitable
@@ -170,6 +175,7 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`${PREFIX} CRITICAL: Failed to return SOL to user: ${msg}`);
+        throw err; // Re-throw so BullMQ retries instead of silently losing user funds
       }
     }
 
@@ -181,8 +187,8 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
           status: finalStatus,
           exitPrice: exitPrice,
           pnlSol: totalProfitLamports,
-          userProfit: userCashProfitLamports + userLockLamports,
-          protocolRevenue: flatFeeLamports,
+          userProfit: pnl.userCashoutLamports + pnl.userLockLamports,
+          protocolRevenue: pnl.totalProtocolRevenueLamports,
           creatorPayout: creatorPayoutLamports,
           burnAmount: burnAmountLamports,
           poolReturn: poolReturnLamports,
@@ -206,7 +212,7 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
       prisma.token.update({
         where: { id: position.token.id },
         data: {
-          totalTradingVolume: position.token.totalTradingVolume + positionSize,
+          totalTradingVolume: position.token.totalTradingVolume + userCapitalLamports + protocolCapitalLamports,
         },
       }),
     ]);
@@ -261,6 +267,28 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
       );
     }
 
+    // Insurance fund deposit — calculated based on flat fee and fund target
+    const insuranceDeposit = calculateInsuranceDeposit(
+      flatFeeLamports,
+      0n, // Current balance checked inside the worker
+      LAMPORTS_PER_SOL * 100n, // Target: 100 SOL
+    );
+    if (insuranceDeposit > 0n) {
+      await insuranceFundQueue.add(
+        'deposit-from-position',
+        {
+          type: 'deposit' as const,
+          amountLamports: insuranceDeposit.toString(),
+          reason: 'position_close_fee',
+          positionId,
+        },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5_000 },
+        },
+      );
+    }
+
     const elapsed = Date.now() - startTime;
     console.log(
       `${PREFIX} Position #${positionId} closed as ${finalStatus} | ` +
@@ -300,10 +328,4 @@ positionCloserWorker.on('error', (err) => {
   console.error(`${PREFIX} Worker error: ${err.message}`);
 });
 
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
 
-function formatSol(lamports: bigint): string {
-  return (Number(lamports) / Number(LAMPORTS_PER_SOL)).toFixed(4);
-}

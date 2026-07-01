@@ -5,13 +5,32 @@
 import { Router } from 'express';
 import { publicLimiter } from '../middleware/rateLimit';
 import { sendSuccess, sendError } from '../lib/response';
+import { ValidationError } from '../lib/errors';
 
 const router = Router();
 
 const BIRDEYE_BASE = 'https://public-api.birdeye.so';
 const BIRDEYE_KEY = process.env.BIRDEYE_API_KEY || '';
 
+if (!BIRDEYE_KEY) {
+  console.warn('[market] WARNING: BIRDEYE_API_KEY is not set — market data endpoints will return errors');
+}
+
+function validateTokenAddress(address: string): void {
+  if (
+    typeof address !== 'string' ||
+    address.length < 32 ||
+    address.length > 44 ||
+    !/^[1-9A-HJ-NP-Za-km-z]+$/.test(address)
+  ) {
+    throw new ValidationError('Invalid token address format');
+  }
+}
+
 async function birdeyeFetch(path: string, params?: Record<string, string>) {
+  if (!BIRDEYE_KEY) {
+    throw new ValidationError('Market data is unavailable — Birdeye API key is not configured');
+  }
   const url = new URL(`${BIRDEYE_BASE}${path}`);
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
@@ -107,7 +126,8 @@ router.get('/search', publicLimiter, async (req, res) => {
  */
 router.get('/token/:address', publicLimiter, async (req, res) => {
   try {
-    const address = req.params.address;
+    const address = req.params.address as string;
+    validateTokenAddress(address);
 
     const [overviewRes, priceRes] = await Promise.all([
       birdeyeFetch('/defi/token_overview', { address: address as string }),
@@ -144,7 +164,8 @@ router.get('/token/:address', publicLimiter, async (req, res) => {
  */
 router.get('/token/:address/price-history', publicLimiter, async (req, res) => {
   try {
-    const address = req.params.address;
+    const address = req.params.address as string;
+    validateTokenAddress(address);
     const type = (req.query.type as string) || '1H';
     const now = Math.floor(Date.now() / 1000);
     const timeFrom = (req.query.time_from as string) || String(now - 24 * 60 * 60);
@@ -179,7 +200,8 @@ router.get('/token/:address/price-history', publicLimiter, async (req, res) => {
  */
 router.get('/token/:address/trades', publicLimiter, async (req, res) => {
   try {
-    const address = req.params.address;
+    const address = req.params.address as string;
+    validateTokenAddress(address);
     const limit = Math.min(parseInt(req.query.limit as string) || 20, 50);
 
     const data = await birdeyeFetch('/defi/txs/token', {
@@ -200,6 +222,28 @@ router.get('/token/:address/trades', publicLimiter, async (req, res) => {
     }));
 
     sendSuccess(res, trades);
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+/**
+ * GET /market/ws-config
+ *
+ * Returns the Birdeye WebSocket URL with API key embedded.
+ * The frontend should use this instead of embedding the key in client code.
+ * This keeps the API key out of browser DevTools / source code.
+ */
+router.get('/ws-config', publicLimiter, async (_req, res) => {
+  try {
+    if (!BIRDEYE_KEY) {
+      throw new ValidationError('WebSocket unavailable — Birdeye API key is not configured');
+    }
+    sendSuccess(res, {
+      wsUrl: `wss://public-api.birdeye.so/socket/solana?x-api-key=${BIRDEYE_KEY}`,
+      // Client should NOT cache this for more than the session
+      expiresIn: 3600,
+    });
   } catch (err) {
     sendError(res, err);
   }

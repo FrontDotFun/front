@@ -10,6 +10,9 @@ export {
   resetConnection,
 } from './connection.js';
 
+// Re-export commonly needed @solana/web3.js types
+export { PublicKey } from '@solana/web3.js';
+
 // Wallet management
 export {
   getProtocolWallet,

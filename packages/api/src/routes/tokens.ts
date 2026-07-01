@@ -49,7 +49,6 @@ router.get('/listed', publicLimiter, async (req, res) => {
         creatorWallet: token.creatorWallet,
         tier: token.tier,
         tierLabel: config.label,
-        tierEmoji: config.emoji,
         maxLeverage: config.maxLeverage,
         flatFeePct: config.flatFeeBps / 100,
         exitThresholdPct: config.exitThresholdBps / 100,
@@ -113,7 +112,6 @@ router.get('/trending', publicLimiter, async (req, res) => {
           name: token.name,
           symbol: token.symbol,
           tier: token.tier,
-          tierEmoji: config.emoji,
           volume24h,
           trades24h: rp._count,
           totalTradingVolume: token.totalTradingVolume,
@@ -122,6 +120,39 @@ router.get('/trending', publicLimiter, async (req, res) => {
       .filter(Boolean);
 
     sendSuccess(res, data);
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+/**
+ * GET /tokens/search?q=...
+ *
+ * Search listed tokens by name, symbol, or address prefix.
+ * Returns up to 20 results ordered by total trading volume.
+ */
+router.get('/search', async (req, res) => {
+  try {
+    const q = (req.query.q as string || '').trim();
+    if (q.length < 1) {
+      sendSuccess(res, []);
+      return;
+    }
+
+    const tokens = await prisma.token.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { symbol: { contains: q, mode: 'insensitive' } },
+          { address: { startsWith: q } },
+        ],
+      },
+      take: 20,
+      orderBy: { totalTradingVolume: 'desc' },
+    });
+
+    sendSuccess(res, tokens);
   } catch (err) {
     sendError(res, err);
   }
@@ -175,7 +206,6 @@ router.get('/:address', publicLimiter, async (req, res) => {
       creatorWallet: token.creatorWallet,
       tier: token.tier,
       tierLabel: config.label,
-      tierEmoji: config.emoji,
       maxLeverage: config.maxLeverage,
       flatFeePct: config.flatFeeBps / 100,
       exitThresholdPct: config.exitThresholdBps / 100,
@@ -256,7 +286,6 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
       creatorWallet: token.creatorWallet,
       tier: token.tier,
       tierLabel: config.label,
-      tierEmoji: config.emoji,
       maxLeverage: config.maxLeverage,
       listedAt: token.listedAt,
       message: 'Token listed successfully',

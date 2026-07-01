@@ -10,33 +10,6 @@ import { sendSuccess, sendError } from '../lib/response';
 const router = Router();
 
 /**
- * GET /health
- *
- * Readiness/liveness probe for container orchestration.
- * Checks database and returns service status.
- */
-router.get('/health', async (_req, res) => {
-  const checks: Record<string, string> = {};
-  let healthy = true;
-
-  // Check database
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    checks.database = 'ok';
-  } catch {
-    checks.database = 'error';
-    healthy = false;
-  }
-
-  const status = healthy ? 200 : 503;
-  res.status(status).json({
-    status: healthy ? 'healthy' : 'unhealthy',
-    timestamp: new Date().toISOString(),
-    checks,
-  });
-});
-
-/**
  * GET /stats
  *
  * Return protocol-wide statistics: total burned, pool size, trades executed,

@@ -159,6 +159,34 @@ export function getTokenDetails(address: string): Promise<TokenInfo> {
   return request(`/tokens/${address}`);
 }
 
+export function getListedTokens(limit?: number): Promise<TokenInfo[]> {
+  const q = limit ? `?limit=${limit}` : '';
+  return request(`/tokens/listed${q}`);
+}
+
+// ── Wallet ──
+
+export interface WalletBalance {
+  address: string;
+  balanceLamports: string;
+  balanceSol: string;
+}
+
+export function getWalletBalance(): Promise<WalletBalance> {
+  return request('/wallet/balance');
+}
+
+export function withdrawWallet(destinationAddress: string, amountLamports: string): Promise<{
+  txSignature: string;
+  amount: string;
+  destination: string;
+}> {
+  return request('/wallet/withdraw', {
+    method: 'POST',
+    body: JSON.stringify({ destinationAddress, amountLamports }),
+  });
+}
+
 export interface CandleData {
   time: number;
   open: number;
@@ -201,7 +229,7 @@ export interface PositionInfo {
   // History fields
   exitPrice?: string | null;
   pnlSol?: string | null;
-  degenProfit?: string | null;
+  userProfit?: string | null;
   protocolRevenue?: string | null;
   closedAt?: string | null;
   closeTx?: string | null;
@@ -338,7 +366,8 @@ export interface LocksResponse {
 }
 
 export function getRecentLocks(limit?: number): Promise<LocksResponse> {
-  return request('/locks');
+  const q = limit ? `?limit=${limit}` : '';
+  return request(`/locks${q}`);
 }
 
 // ── Creator ──

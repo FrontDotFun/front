@@ -8,7 +8,7 @@
 
 import 'dotenv/config';
 import type { Worker } from 'bullmq';
-import { redisConnection, allQueues } from './queues.js';
+import { redisConnection, allQueues, listingScanQueue } from './queues.js';
 import { feeClaimerWorker, scheduleFeeClaimer } from './fee-claimer.js';
 import { priceMonitorWorker, schedulePriceMonitor } from './price-monitor.js';
 import { positionCloserWorker } from './position-closer.js';
@@ -17,7 +17,6 @@ import { lockEngineWorker, scheduleLockUnlockChecker } from './lock-engine.js';
 import { creatorPayoutWorker } from './creator-payout.js';
 import { listingScannerWorker } from './listing-scanner.js';
 import { insuranceFundWorker } from './insurance-fund.js';
-import { listingScanQueue } from './queues.js';
 
 const PREFIX = '[scheduler]';
 

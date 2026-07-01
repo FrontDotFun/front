@@ -9,7 +9,8 @@
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL } from '@front-protocol/core';
+import { LAMPORTS_PER_SOL, formatSol } from '@front-protocol/core';
+import { getProtocolWallet, swapSolToToken, burnToken, PublicKey } from '@front-protocol/solana';
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[burn-engine]';
@@ -20,8 +21,11 @@ const BURN_THRESHOLD_LAMPORTS = LAMPORTS_PER_SOL; // 1_000_000_000n
 /** Redis key for the persistent burn accumulator */
 const REDIS_PENDING_BURN_KEY = 'front:burn:pending_lamports';
 
-/** $FRONT token mint — used as output mint for Jupiter swap */
+/** $FRONT token mint — read from env; empty triggers simulation mode */
 const FRONT_TOKEN_MINT = process.env.FRONT_TOKEN_MINT ?? '';
+
+/** Default slippage tolerance for Jupiter swaps (300 bps = 3%) */
+const BURN_SLIPPAGE_BPS = 300;
 
 interface BurnJobData {
   positionId: number;
@@ -40,8 +44,8 @@ async function getPendingFromRedis(): Promise<bigint> {
  * Atomically increment the pending burn balance in Redis.
  */
 async function addPendingToRedis(amount: bigint): Promise<bigint> {
-  const newVal = await redisConnection.incrby(REDIS_PENDING_BURN_KEY, Number(amount));
-  return BigInt(newVal);
+  const newVal = await redisConnection.call('INCRBY', REDIS_PENDING_BURN_KEY, amount.toString());
+  return BigInt(newVal as string | number);
 }
 
 /**
@@ -60,26 +64,45 @@ async function executeBurn(solAmountLamports: bigint): Promise<{
   txSignature: string;
   tokensBurned: bigint;
 }> {
+  // Simulation mode — FRONT_TOKEN_MINT not configured
   if (!FRONT_TOKEN_MINT) {
-    throw new Error(`${PREFIX} FRONT_TOKEN_MINT env var is not set — cannot execute burn swap`);
+    console.warn(`${PREFIX} ⚠️  FRONT_TOKEN_MINT not set — running in simulation mode`);
+    const estimatedTokens = solAmountLamports * 1000n;
+    return {
+      txSignature: `sim_burn_${Date.now()}`,
+      tokensBurned: estimatedTokens,
+    };
   }
 
-  // SOLANA: Execute in 2 steps:
-  //   1. Jupiter swap: SOL → $FRONT via api.jup.ag
-  //      - GET /quote?inputMint=So11...&outputMint=${FRONT_TOKEN_MINT}&amount=${solAmount}
-  //      - POST /swap with quoteResponse
-  //   2. SPL Token burn instruction
-  //      - Create burn instruction for the received $FRONT tokens
-  //      - Sign and send transaction
+  const protocolWallet = getProtocolWallet();
+  const frontMint = new PublicKey(FRONT_TOKEN_MINT);
+
+  // Step 1: Jupiter swap SOL → $FRONT
   console.log(
-    `${PREFIX} SOLANA: Executing Jupiter swap ${formatSol(solAmountLamports)} SOL → $FRONT (${FRONT_TOKEN_MINT.substring(0, 8)}…), then burn`,
+    `${PREFIX} Executing Jupiter swap ${formatSol(solAmountLamports)} SOL → $FRONT (${FRONT_TOKEN_MINT.substring(0, 8)}…)`,
   );
 
-  // Simulated return — in production comes from the actual swap
-  const estimatedTokens = solAmountLamports * 1000n; // fake rate for logging
+  const { txSignature: swapTx, tokensReceived } = await swapSolToToken(
+    solAmountLamports,
+    FRONT_TOKEN_MINT,
+    BURN_SLIPPAGE_BPS,
+    protocolWallet,
+  );
+
+  console.log(
+    `${PREFIX} Swap complete: received ${tokensReceived} $FRONT (tx: ${swapTx})`,
+  );
+
+  // Step 2: Burn the purchased $FRONT tokens
+  console.log(`${PREFIX} Burning ${tokensReceived} $FRONT tokens…`);
+
+  const burnTx = await burnToken(frontMint, tokensReceived, protocolWallet);
+
+  console.log(`${PREFIX} 🔥 Burn tx confirmed: ${burnTx}`);
+
   return {
-    txSignature: `sim_burn_${Date.now()}`,
-    tokensBurned: estimatedTokens,
+    txSignature: burnTx,
+    tokensBurned: tokensReceived,
   };
 }
 
@@ -109,11 +132,13 @@ async function processBurnJob(job: Job<BurnJobData>): Promise<void> {
 
     // Execute burn with accumulated amount
     const burnAmount = newPending;
-    await resetPendingInRedis(); // reset before async operation
 
     console.log(`${PREFIX} Threshold reached! Executing burn of ${formatSol(burnAmount)} SOL`);
 
     const { txSignature, tokensBurned } = await executeBurn(burnAmount);
+
+    // Only reset Redis AFTER successful burn — if burn fails, amount stays for next attempt
+    await resetPendingInRedis();
 
     // Record burn in database
     await prisma.$transaction([
@@ -142,14 +167,11 @@ async function processBurnJob(job: Job<BurnJobData>): Promise<void> {
       `${PREFIX} 🔥 Burned ${formatSol(burnAmount)} SOL → ${tokensBurned} $FRONT tokens (tx: ${txSignature})`,
     );
   } catch (err) {
-    // On failure, put the amount back so it's not lost
-    const solAmount2 = BigInt(solAmountStr);
-    await addPendingToRedis(solAmount2);
     const msg = err instanceof Error ? err.message : String(err);
     console.error(
-      `${PREFIX} Error processing burn for position #${positionId}: ${msg} (${formatSol(solAmount2)} SOL returned to pending)`,
+      `${PREFIX} Error processing burn for position #${positionId}: ${msg}`,
     );
-    throw err; // Let BullMQ retry
+    throw err; // Let BullMQ retry — Redis still holds the accumulated amount
   }
 }
 
@@ -192,10 +214,4 @@ export async function resetPendingBurns(): Promise<void> {
   await resetPendingInRedis();
 }
 
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
 
-function formatSol(lamports: bigint): string {
-  return (Number(lamports) / Number(LAMPORTS_PER_SOL)).toFixed(4);
-}

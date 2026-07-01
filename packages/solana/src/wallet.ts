@@ -111,11 +111,18 @@ function getEncryptionKey(): Buffer {
 /**
  * Load the protocol's main wallet from the `PROTOCOL_WALLET_PRIVATE_KEY` env var.
  * The private key must be base58 encoded (standard Solana CLI format).
+ * Result is cached — the wallet is decoded and logged only on first call.
  *
  * @returns The protocol's Keypair
  * @throws Error if the env var is not set or contains an invalid key
  */
+let _cachedProtocolWallet: Keypair | null = null;
+
 export function getProtocolWallet(): Keypair {
+  if (_cachedProtocolWallet) {
+    return _cachedProtocolWallet;
+  }
+
   const raw = process.env.PROTOCOL_WALLET_PRIVATE_KEY;
   if (!raw) {
     throw new Error(
@@ -129,6 +136,7 @@ export function getProtocolWallet(): Keypair {
     console.log(
       `${LOG_PREFIX} Loaded protocol wallet: ${keypair.publicKey.toBase58()}`,
     );
+    _cachedProtocolWallet = keypair;
     return keypair;
   } catch (err) {
     throw new Error(

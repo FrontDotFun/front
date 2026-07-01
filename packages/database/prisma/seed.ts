@@ -70,7 +70,7 @@ async function seed() {
       tokensBought: BigInt(5_000_000_000),
       exitThreshold: -15.0,
       pnlSol: BigInt(4_200_000_000),         // 4.2 SOL profit
-      degenProfit: BigInt(2_940_000_000),     // 70%
+      userProfit: BigInt(2_940_000_000),     // 70%
       protocolRevenue: BigInt(1_302_000_000), // 30% + fee
       creatorPayout: BigInt(390_600_000),     // 30% of revenue
       burnAmount: BigInt(260_400_000),        // 20% of revenue
@@ -97,7 +97,7 @@ async function seed() {
       tokensBought: BigInt(2_083_333_333),
       exitThreshold: -15.0,
       pnlSol: BigInt(-375_000_000),
-      degenProfit: BigInt(0),
+      userProfit: BigInt(0),
       protocolRevenue: BigInt(50_000_000),
       creatorPayout: BigInt(15_000_000),
       burnAmount: BigInt(10_000_000),

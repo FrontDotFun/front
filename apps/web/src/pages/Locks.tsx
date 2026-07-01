@@ -43,7 +43,7 @@ export const Locks: FC = () => {
   const fetchLocks = useCallback(async () => {
     try {
       setError(null);
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('front_token');
       if (!token) {
         setLocks([]);
         setLoading(false);
@@ -92,7 +92,7 @@ export const Locks: FC = () => {
   const handleClaim = async (lockId: number) => {
     setClaiming(lockId);
     try {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('front_token');
       const res = await fetch(`${API_BASE}/api/locks/${lockId}/claim`, {
         method: 'POST',
         headers: {

@@ -8,13 +8,17 @@
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL, PROFIT_LOCK_DURATION_MS } from '@front-protocol/core';
+import { LAMPORTS_PER_SOL, PROFIT_LOCK_DURATION_MS, formatSol } from '@front-protocol/core';
+import { getProtocolWallet, swapSolToToken } from '@front-protocol/solana';
 import { redisConnection, QUEUE_NAMES, lockQueue } from './queues.js';
 
 const PREFIX = '[lock-engine]';
 
 /** $FRONT token mint — used as output mint for Jupiter swap */
 const FRONT_TOKEN_MINT = process.env.FRONT_TOKEN_MINT ?? '';
+
+/** Default slippage tolerance for Jupiter swaps (300 bps = 3%) */
+const LOCK_SLIPPAGE_BPS = 300;
 
 interface LockJobData {
   userWallet: string;
@@ -38,27 +42,45 @@ async function executeFrontBuy(solAmountLamports: bigint): Promise<{
   buyTx: string;
   tokensPurchased: bigint;
 }> {
+  // Simulation mode — FRONT_TOKEN_MINT not configured
   if (!FRONT_TOKEN_MINT) {
-    throw new Error(`${PREFIX} FRONT_TOKEN_MINT env var is not set — cannot execute $FRONT swap`);
+    console.warn(`${PREFIX} ⚠️  FRONT_TOKEN_MINT not set — running in simulation mode`);
+    const estimatedTokens = solAmountLamports * 500n;
+    return {
+      buyTx: `sim_front_buy_${Date.now()}`,
+      tokensPurchased: estimatedTokens,
+    };
   }
 
-  // SOLANA: would execute Jupiter swap:
-  //   1. GET quote from api.jup.ag: SOL → $FRONT (mint: FRONT_TOKEN_MINT)
-  //   2. POST /swap with the quote
-  //   3. Confirm transaction
+  const protocolWallet = getProtocolWallet();
+
   console.log(
-    `${PREFIX} SOLANA: buying $FRONT (${FRONT_TOKEN_MINT.substring(0, 8)}…) with ${formatSol(solAmountLamports)} SOL via Jupiter`,
+    `${PREFIX} Buying $FRONT (${FRONT_TOKEN_MINT.substring(0, 8)}…) with ${formatSol(solAmountLamports)} SOL via Jupiter`,
   );
 
-  const estimatedTokens = solAmountLamports * 500n; // fake rate for simulation
+  const { txSignature, tokensReceived } = await swapSolToToken(
+    solAmountLamports,
+    FRONT_TOKEN_MINT,
+    LOCK_SLIPPAGE_BPS,
+    protocolWallet,
+  );
+
+  console.log(
+    `${PREFIX} Buy complete: received ${tokensReceived} $FRONT (tx: ${txSignature})`,
+  );
+
   return {
-    buyTx: `sim_front_buy_${Date.now()}`,
-    tokensPurchased: estimatedTokens,
+    buyTx: txSignature,
+    tokensPurchased: tokensReceived,
   };
 }
 
 /**
  * Lock the purchased $FRONT tokens in a token account.
+ *
+ * NOTE: Placeholder — requires a custom Solana lock program (PDA escrow).
+ * Currently returns a simulated tx signature. Replace once the on-chain
+ * lock program is deployed.
  *
  * @returns Lock transaction signature
  */
@@ -66,11 +88,9 @@ async function executeLock(
   userWallet: string,
   tokenAmount: bigint,
 ): Promise<string> {
-  // SOLANA: would execute SPL token lock:
-  //   1. Transfer $FRONT to a lock PDA or escrow account
-  //   2. Record the lock with unlock timestamp
-  console.log(
-    `${PREFIX} SOLANA: would lock ${tokenAmount} $FRONT for wallet ${userWallet}`,
+  console.warn(
+    `${PREFIX} ⚠️  executeLock is a placeholder — custom Solana lock program not yet deployed. ` +
+    `Would lock ${tokenAmount} $FRONT for wallet ${userWallet}`,
   );
   return `sim_lock_${userWallet}_${Date.now()}`;
 }
@@ -78,16 +98,19 @@ async function executeLock(
 /**
  * Release unlocked $FRONT tokens back to the user's wallet.
  *
+ * NOTE: Placeholder — requires a custom Solana lock program (PDA escrow).
+ * Currently returns a simulated tx signature. Replace once the on-chain
+ * lock program is deployed.
+ *
  * @returns Unlock transaction signature
  */
 async function executeUnlock(
   userWallet: string,
   tokenAmount: bigint,
 ): Promise<string> {
-  // SOLANA: would execute SPL token unlock:
-  //   1. Transfer $FRONT from lock PDA back to user's wallet
-  console.log(
-    `${PREFIX} SOLANA: would unlock ${tokenAmount} $FRONT to wallet ${userWallet}`,
+  console.warn(
+    `${PREFIX} ⚠️  executeUnlock is a placeholder — custom Solana lock program not yet deployed. ` +
+    `Would unlock ${tokenAmount} $FRONT to wallet ${userWallet}`,
   );
   return `sim_unlock_${userWallet}_${Date.now()}`;
 }
@@ -257,10 +280,4 @@ export async function scheduleLockUnlockChecker(): Promise<void> {
   console.log(`${PREFIX} Scheduled unlock checks every hour`);
 }
 
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
 
-function formatSol(lamports: bigint): string {
-  return (Number(lamports) / Number(LAMPORTS_PER_SOL)).toFixed(4);
-}

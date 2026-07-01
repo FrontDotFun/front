@@ -1,25 +1,13 @@
 import { type FC, useState, useEffect, useRef } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { WalletButton } from './WalletButton';
 import { fetchTokenOverview, type TokenOverview } from '../lib/birdeye';
 import { formatPrice } from '../lib/format';
-
-// Top Solana meme tokens to show in ticker
-const TICKER_TOKENS = [
-  { address: 'EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm', symbol: '$WIF' },
-  { address: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', symbol: '$BONK' },
-  { address: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr', symbol: '$POPCAT' },
-  { address: 'A98UDy7z8MfmWnTQt6cKjje7UfqV3pTLf4yEbuwL2HrH', symbol: '$MOODENG' },
-  { address: 'ukHH6c7mMyiWCf1b9pnWe25TSpkDDt3H5pQZgZ74J82', symbol: '$BOME' },
-  { address: '7atgF8KQo4wJrD5ATGX7t1V2zVvykPJbFfNeVf1icFv1', symbol: '$CATWIFHAT' },
-  { address: 'MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5', symbol: '$MEW' },
-  { address: '2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump', symbol: '$PNUT' },
-  { address: '3S8qX1MsMqRbiwKg2cQyx7nis1oHMgaCuc9c4VfvVdPN', symbol: '$MOTHER' },
-  { address: '7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3', symbol: '$SLERF' },
-];
+import * as api from '../lib/api';
 
 interface TickerItem {
   symbol: string;
+  address: string;
   price: string;
   change: string;
   up: boolean;
@@ -28,35 +16,65 @@ interface TickerItem {
 
 export const Layout: FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const isTradePage = location.pathname === '/trade';
   const [tickerItems, setTickerItems] = useState<TickerItem[]>([]);
+  const [tickerHidden, setTickerHidden] = useState(false);
   const tickerLoaded = useRef(false);
 
-  // Fetch real prices for ticker tokens
+  // Fetch listed tokens from API, then enrich with Birdeye prices
   useEffect(() => {
     if (tickerLoaded.current) return;
     tickerLoaded.current = true;
 
     const loadTicker = async () => {
-      const results = await Promise.allSettled(
-        TICKER_TOKENS.map(t => fetchTokenOverview(t.address))
-      );
+      try {
+        // Fetch listed tokens from the protocol API
+        const listedTokens = await api.getListedTokens(15);
 
-      const items: TickerItem[] = [];
-      results.forEach((result, i) => {
-        if (result.status === 'fulfilled' && result.value) {
-          const d = result.value;
-          items.push({
-            symbol: TICKER_TOKENS[i].symbol,
-            price: formatPrice(d.price),
-            change: (d.priceChange24h ?? 0).toFixed(1),
-            up: (d.priceChange24h ?? 0) >= 0,
-            key: TICKER_TOKENS[i].address,
-          });
+        if (!listedTokens || listedTokens.length === 0) {
+          setTickerHidden(true);
+          return;
         }
-      });
 
-      if (items.length > 0) setTickerItems(items);
+        setTickerHidden(false);
+
+        // Fetch Birdeye price data for each listed token
+        const results = await Promise.allSettled(
+          listedTokens.map(t => fetchTokenOverview(t.address))
+        );
+
+        const items: TickerItem[] = [];
+        results.forEach((result, i) => {
+          const token = listedTokens[i];
+          if (result.status === 'fulfilled' && result.value) {
+            const d = result.value;
+            items.push({
+              symbol: `$${token.symbol || d.symbol}`,
+              address: token.address,
+              price: formatPrice(d.price),
+              change: (d.priceChange24h ?? 0).toFixed(1),
+              up: (d.priceChange24h ?? 0) >= 0,
+              key: token.address,
+            });
+          } else {
+            // Token listed but no Birdeye data — still show it
+            items.push({
+              symbol: `$${token.symbol || '???'}`,
+              address: token.address,
+              price: token.priceUsd ? formatPrice(token.priceUsd) : '--',
+              change: token.priceChange24hPct != null ? token.priceChange24hPct.toFixed(1) : '0.0',
+              up: (token.priceChange24hPct ?? 0) >= 0,
+              key: token.address,
+            });
+          }
+        });
+
+        if (items.length > 0) setTickerItems(items);
+        else setTickerHidden(true);
+      } catch {
+        setTickerHidden(true);
+      }
     };
 
     loadTicker();
@@ -102,11 +120,8 @@ export const Layout: FC = () => {
           <NavLink to="/docs" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
             Docs
           </NavLink>
-          <NavLink to="/creator" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Creators
-          </NavLink>
-          <NavLink to="/list" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            List Token
+          <NavLink to="/account" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
+            Account
           </NavLink>
         </div>
 
@@ -116,41 +131,48 @@ export const Layout: FC = () => {
       </nav>
 
       {/* ── Ticker Bar ─────────────────────────── */}
-      <div className="ticker-bar">
-        {tickerItems.length > 0 ? (
-          <div style={{
-            display: 'flex',
-            animation: 'ticker-scroll 40s linear infinite',
-            willChange: 'transform',
-          }}>
-            {['-a', '-b'].map(suffix =>
-              tickerItems.map(t => (
-                <div className="ticker-item" key={t.key + suffix}>
-                  <span className="ticker-name">{t.symbol}</span>
-                  <span className="ticker-price">${t.price}</span>
-                  <span className={`ticker-change ${t.up ? 'ticker-change-up' : 'ticker-change-down'}`}>
-                    {t.up ? '+' : ''}{t.change}%
-                  </span>
+      {!tickerHidden && (
+        <div className="ticker-bar">
+          {tickerItems.length > 0 ? (
+            <div style={{
+              display: 'flex',
+              animation: 'ticker-scroll 40s linear infinite',
+              willChange: 'transform',
+            }}>
+              {['-a', '-b'].map(suffix =>
+                tickerItems.map(t => (
+                  <div
+                    className="ticker-item"
+                    key={t.key + suffix}
+                    onClick={() => navigate(`/trade?token=${t.address}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <span className="ticker-name">{t.symbol}</span>
+                    <span className="ticker-price">${t.price}</span>
+                    <span className={`ticker-change ${t.up ? 'ticker-change-up' : 'ticker-change-down'}`}>
+                      {t.up ? '+' : ''}{t.change}%
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : (
+            <div style={{
+              display: 'flex',
+              animation: 'ticker-scroll 40s linear infinite',
+              willChange: 'transform',
+              opacity: 0.3,
+            }}>
+              {Array.from({ length: 20 }).map((_, i) => (
+                <div className="ticker-item" key={`skel-${i}`}>
+                  <span className="ticker-name" style={{ width: 40, height: 10, background: '#111', borderRadius: 3, display: 'inline-block' }} />
+                  <span className="ticker-price" style={{ width: 50, height: 10, background: '#0a0a0a', borderRadius: 3, display: 'inline-block' }} />
                 </div>
-              ))
-            )}
-          </div>
-        ) : (
-          <div style={{
-            display: 'flex',
-            animation: 'ticker-scroll 40s linear infinite',
-            willChange: 'transform',
-            opacity: 0.3,
-          }}>
-            {Array.from({ length: 20 }).map((_, i) => (
-              <div className="ticker-item" key={`skel-${i}`}>
-                <span className="ticker-name" style={{ width: 40, height: 10, background: '#111', borderRadius: 3, display: 'inline-block' }} />
-                <span className="ticker-price" style={{ width: 50, height: 10, background: '#0a0a0a', borderRadius: 3, display: 'inline-block' }} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Content ────────────────────────────── */}
       <div className={isTradePage ? 'main-content' : 'main-content'}>
@@ -165,4 +187,3 @@ export const Layout: FC = () => {
     </>
   );
 };
-

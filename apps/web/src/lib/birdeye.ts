@@ -16,7 +16,8 @@
  */
 
 const API_BASE = 'https://public-api.birdeye.so';
-const WS_URL = 'wss://public-api.birdeye.so/socket/solana';
+const WS_URL_FALLBACK = 'wss://public-api.birdeye.so/socket/solana';
+const BACKEND_URL = import.meta.env.VITE_API_URL || '/api';
 
 function getApiKey(): string {
   return import.meta.env.VITE_BIRDEYE_API_KEY || '';
@@ -347,16 +348,30 @@ export class BirdeyePriceStream {
     this.onUpdate = onUpdate;
   }
 
-  connect() {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      console.warn('[Birdeye WS] No API key — using polling fallback');
-      this.startPolling();
-      return;
+  async connect() {
+    // Try to get WS URL from backend (keeps API key server-side)
+    let wsUrl: string;
+    try {
+      const res = await fetch(`${BACKEND_URL}/market/ws-config`);
+      if (res.ok) {
+        const json = await res.json();
+        wsUrl = json.data?.wsUrl;
+      } else {
+        throw new Error('WS config unavailable');
+      }
+    } catch {
+      // Fallback: use client-side key if backend is unavailable
+      const apiKey = getApiKey();
+      if (!apiKey) {
+        console.warn('[Birdeye WS] No API key — using polling fallback');
+        this.startPolling();
+        return;
+      }
+      wsUrl = `${WS_URL_FALLBACK}?x-api-key=${apiKey}`;
     }
 
     try {
-      this.ws = new WebSocket(`${WS_URL}?x-api-key=${apiKey}`);
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('[Birdeye WS] Connected, subscribing to', this.tokenAddress, 'at', this.chartType);

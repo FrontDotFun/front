@@ -6,7 +6,7 @@ import { Router } from 'express';
 import { prisma } from '@front-protocol/database';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { publicLimiter } from '../middleware/rateLimit';
-import { sendSuccess, sendError } from '../lib/response';
+import { sendSuccess, sendError, sendPaginated } from '../lib/response';
 
 const router = Router();
 
@@ -19,25 +19,34 @@ router.get('/', verifyWalletSignature, async (req, res) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const wallet = authReq.wallet!;
+    const limit = Math.min(parseInt(req.query.limit as string, 10) || 50, 100);
+    const offset = parseInt(req.query.offset as string, 10) || 0;
 
-    const locks = await prisma.profitLock.findMany({
-      where: { userWallet: wallet },
-      include: {
-        position: {
-          select: {
-            id: true,
-            tier: true,
-            token: {
-              select: {
-                address: true,
-                symbol: true,
+    const where = { userWallet: wallet };
+
+    const [locks, total] = await Promise.all([
+      prisma.profitLock.findMany({
+        where,
+        include: {
+          position: {
+            select: {
+              id: true,
+              tier: true,
+              token: {
+                select: {
+                  address: true,
+                  symbol: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { lockedAt: 'desc' },
-    });
+        orderBy: { lockedAt: 'desc' },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.profitLock.count({ where }),
+    ]);
 
     const now = new Date();
 
@@ -62,7 +71,8 @@ router.get('/', verifyWalletSignature, async (req, res) => {
         : null,
     }));
 
-    // Compute summary stats
+    // Compute summary stats from the current page
+    // Note: summary is computed from returned locks; for global stats use /locks/global
     const totalLocked = locks
       .filter((l) => !l.isUnlocked)
       .reduce((sum, l) => sum + l.tokenAmount, 0n);
@@ -80,6 +90,12 @@ router.get('/', verifyWalletSignature, async (req, res) => {
         totalUnlocked,
         pendingUnlock,
         activeLockCount: locks.filter((l) => !l.isUnlocked).length,
+      },
+      pagination: {
+        total,
+        limit,
+        offset,
+        hasMore: offset + limit < total,
       },
     });
   } catch (err) {

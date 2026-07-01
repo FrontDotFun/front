@@ -4,6 +4,7 @@
 
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import crypto from 'node:crypto';
 import { prisma } from '@front-protocol/database';
 import { generateBotWallet } from '@front-protocol/solana';
 import { issueToken, verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
@@ -212,7 +213,20 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
     const { destinationAddress, amountLamports } = req.body;
 
     if (!destinationAddress || !amountLamports) {
-      throw new AuthError('destinationAddress and amountLamports are required');
+      throw new ValidationError('Missing required fields', [
+        ...(!destinationAddress ? ['destinationAddress is required'] : []),
+        ...(!amountLamports ? ['amountLamports is required'] : []),
+      ]);
+    }
+
+    // Validate Solana address format (base58, 32-44 chars)
+    if (
+      typeof destinationAddress !== 'string' ||
+      destinationAddress.length < 32 ||
+      destinationAddress.length > 44 ||
+      !/^[1-9A-HJ-NP-Za-km-z]+$/.test(destinationAddress)
+    ) {
+      throw new ValidationError('Invalid Solana destination address');
     }
 
     const user = await prisma.user.findUnique({
@@ -237,7 +251,12 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
     const { loadBotWallet, getSolBalance, transferSol, getProtocolWallet } = await import('@front-protocol/solana');
 
     const userKeypair = loadBotWallet(user.encryptedKey);
-    const amount = BigInt(amountLamports);
+    let amount: bigint;
+    try {
+      amount = BigInt(amountLamports);
+    } catch {
+      throw new ValidationError('Invalid amount — must be a numeric string');
+    }
 
     // Check balance (reserve 5000 lamports for tx fee)
     const balance = await getSolBalance(user.walletAddress);
@@ -277,12 +296,25 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:4001/api/auth/google/callback';
 const FRONTEND_URL = process.env.NODE_ENV === 'production' ? 'https://www.front.fun' : 'http://localhost:5173';
 
+/** One-time auth codes: code → { token, expiresAt } */
+const authCodeStore = new Map<string, { token: string; expiresAt: number }>();
+
 /**
  * GET /auth/google
  *
  * Redirect to Google OAuth consent screen.
+ * Generates a CSRF state parameter stored in a secure httpOnly cookie.
  */
 router.get('/google', (_req, res) => {
+  const state = crypto.randomBytes(32).toString('hex');
+
+  res.cookie('oauth_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 600_000, // 10 minutes
+  });
+
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
     redirect_uri: GOOGLE_CALLBACK_URL,
@@ -290,6 +322,7 @@ router.get('/google', (_req, res) => {
     scope: 'openid email profile',
     access_type: 'offline',
     prompt: 'consent',
+    state,
   });
 
   res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
@@ -303,11 +336,19 @@ router.get('/google', (_req, res) => {
  */
 router.get('/google/callback', async (req, res) => {
   try {
-    const { code } = req.query;
+    const { code, state } = req.query;
 
     if (!code || typeof code !== 'string') {
       return res.redirect(`${FRONTEND_URL}/login?error=no_code`);
     }
+
+    // Validate CSRF state parameter
+    const storedState = req.cookies?.oauth_state;
+    if (!state || !storedState || state !== storedState) {
+      return res.redirect(`${FRONTEND_URL}/login?error=invalid_state`);
+    }
+    // Clear the state cookie
+    res.clearCookie('oauth_state');
 
     // Exchange code for tokens
     const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
@@ -360,14 +401,54 @@ router.get('/google/callback', async (req, res) => {
       });
     }
 
-    // Issue JWT
+    // Issue JWT and store behind a one-time code (prevents JWT in URL)
     const token = issueToken(user.id, user.walletAddress);
+    const authCode = crypto.randomBytes(32).toString('hex');
+    authCodeStore.set(authCode, { token, expiresAt: Date.now() + 60_000 }); // 60s expiry
 
-    // Redirect to frontend with token
-    res.redirect(`${FRONTEND_URL}/auth/callback?token=${token}`);
+    // Clean up expired codes periodically
+    if (authCodeStore.size > 100) {
+      const now = Date.now();
+      for (const [k, v] of authCodeStore) {
+        if (v.expiresAt < now) authCodeStore.delete(k);
+      }
+    }
+
+    // Redirect with one-time code instead of JWT
+    res.redirect(`${FRONTEND_URL}/auth/callback?code=${authCode}`);
   } catch (err) {
     console.error('[Google OAuth] Error:', err);
     res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
+  }
+});
+
+/**
+ * POST /auth/exchange
+ *
+ * Exchange a one-time auth code for a JWT. The code is valid for 60 seconds.
+ */
+router.post('/exchange', (req, res) => {
+  try {
+    const { code } = req.body;
+    if (!code || typeof code !== 'string') {
+      throw new ValidationError('Missing auth code');
+    }
+
+    const entry = authCodeStore.get(code);
+    if (!entry) {
+      throw new AuthError('Invalid or expired auth code');
+    }
+
+    // One-time use — delete immediately
+    authCodeStore.delete(code);
+
+    if (entry.expiresAt < Date.now()) {
+      throw new AuthError('Auth code has expired');
+    }
+
+    sendSuccess(res, { token: entry.token });
+  } catch (err) {
+    sendError(res, err);
   }
 });
 

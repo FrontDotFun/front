@@ -88,7 +88,20 @@ export function getConnection(): Connection {
 
   const cluster = getCluster();
   const commitment = getCommitment();
-  const rpcUrl = process.env.SOLANA_RPC_URL ?? DEFAULT_RPC_URLS[cluster]!;
+  const customRpc = process.env.SOLANA_RPC_URL;
+  const rpcUrl = customRpc ?? DEFAULT_RPC_URLS[cluster]!;
+
+  if (!customRpc) {
+    console.warn(
+      `${LOG_PREFIX} ⚠️  WARNING: Using default public RPC (${rpcUrl}).`,
+    );
+    console.warn(
+      `${LOG_PREFIX} ⚠️  This WILL be rate-limited in production.`,
+    );
+    console.warn(
+      `${LOG_PREFIX} ⚠️  Set SOLANA_RPC_URL to a private RPC provider (Helius, Triton, QuickNode, etc.)`,
+    );
+  }
 
   console.log(
     `${LOG_PREFIX} Creating connection → cluster=${cluster} commitment=${commitment} rpc=${rpcUrl.substring(0, 40)}…`,

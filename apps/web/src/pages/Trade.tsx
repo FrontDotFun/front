@@ -1,5 +1,6 @@
-import { type FC, useState, useCallback, useTransition, useEffect } from 'react';
+import { type FC, useState, useCallback, useTransition, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTokens } from '../hooks/useTokens';
 import { usePositions } from '../hooks/usePositions';
 import { useTokenOverview } from '../hooks/useTokenOverview';
@@ -10,6 +11,7 @@ import { LiquidationBar } from '../components/LiquidationBar';
 import { TradesFeed } from '../components/TradesFeed';
 import { VibeCommandBar, type ParsedCommand } from '../components/VibeCommandBar';
 import { formatSol, formatPrice, formatCountdown, formatTimeAgo, solscanTxUrl } from '../lib/format';
+import * as api from '../lib/api';
 
 export const Trade: FC = () => {
   const {
@@ -42,6 +44,51 @@ export const Trade: FC = () => {
   const [optimisticState, setOptimisticState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [expandedPosition, setExpandedPosition] = useState<number | null>(null);
+
+  // ── Listing check state ──
+  const [isTokenListed, setIsTokenListed] = useState<boolean | null>(null); // null = loading/unchecked
+  const [searchParams] = useSearchParams();
+  const tokenAddrFromUrl = searchParams.get('token');
+  const lastLoadedAddr = useRef<string | null>(null);
+
+  // ── Auto-select token from URL ?token= param ──
+  useEffect(() => {
+    if (!tokenAddrFromUrl) return;
+    if (tokenAddrFromUrl === lastLoadedAddr.current) return;
+    lastLoadedAddr.current = tokenAddrFromUrl;
+
+    api.getTokenDetails(tokenAddrFromUrl)
+      .then((info) => {
+        selectToken(info);
+      })
+      .catch(() => {
+        // Token not in our DB — create a minimal token for chart display
+        selectToken({
+          address: tokenAddrFromUrl,
+          name: searchParams.get('name') || 'Unknown',
+          symbol: searchParams.get('symbol') || tokenAddrFromUrl.slice(0, 6),
+          tier: '',
+        });
+      });
+  }, [tokenAddrFromUrl, selectToken, searchParams]);
+
+  // ── Check if token is listed on Front ──
+  useEffect(() => {
+    if (!selectedToken?.address) {
+      setIsTokenListed(null);
+      return;
+    }
+    setIsTokenListed(null); // reset to loading
+    api.getTokenDetails(selectedToken.address)
+      .then((info) => {
+        setIsTokenListed(info.isActive === true);
+      })
+      .catch(() => {
+        setIsTokenListed(false);
+      });
+  }, [selectedToken?.address]);
+
+  const tradingDisabled = isTokenListed === false;
 
   // Computed values
   const collateralSol = parseFloat(collateral) || 0;
@@ -379,6 +426,29 @@ export const Trade: FC = () => {
               </div>
             ) : (
               <div className="exec-form">
+                {/* Unlisted token banner */}
+                {tradingDisabled && (
+                  <div style={{
+                    padding: '14px 16px',
+                    background: 'rgba(255, 59, 59, 0.04)',
+                    border: '1px solid rgba(255, 100, 50, 0.2)',
+                    borderRadius: 8,
+                    marginBottom: 4,
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#ff6d00', marginBottom: 4 }}>
+                      This token is not listed on Front.
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      Trading is not available for unlisted tokens.
+                    </div>
+                    <Link to="/list" style={{
+                      display: 'inline-block', marginTop: 8, fontSize: 11, color: '#f0b90b',
+                      textDecoration: 'none',
+                    }}>
+                      Token creators can list at /list →
+                    </Link>
+                  </div>
+                )}
                 {/* Capital */}
                 <div className="exec-field">
                   <label className="exec-label">Collateral</label>
@@ -537,11 +607,11 @@ export const Trade: FC = () => {
                     optimisticState === 'error' ? 'exec-btn-error' : ''
                   }`}
                   onClick={handleBuyClick}
-                  disabled={optimisticState === 'submitting' || isOpening || collateralSol <= 0}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
+                  disabled={tradingDisabled || optimisticState === 'submitting' || isOpening || collateralSol <= 0}
+                  whileHover={tradingDisabled ? {} : { scale: 1.01 }}
+                  whileTap={tradingDisabled ? {} : { scale: 0.99 }}
                 >
-                  {apeButtonLabel()}
+                  {tradingDisabled ? 'Trading Unavailable' : apeButtonLabel()}
                 </motion.button>
               </div>
             )}

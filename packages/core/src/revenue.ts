@@ -33,8 +33,9 @@ export function splitRevenue(totalRevenueLamports: bigint): RevenueBreakdown {
     (totalRevenueLamports * BigInt(REVENUE_SPLIT.CREATOR)) / BigInt(BPS.FULL);
   const burnAmountLamports =
     (totalRevenueLamports * BigInt(REVENUE_SPLIT.BURN)) / BigInt(BPS.FULL);
+  // Pool gets the remainder — absorbs any rounding dust from BigInt floor division
   const poolReturnLamports =
-    (totalRevenueLamports * BigInt(REVENUE_SPLIT.POOL)) / BigInt(BPS.FULL);
+    totalRevenueLamports - creatorPayoutLamports - burnAmountLamports;
 
   return {
     totalRevenueLamports,

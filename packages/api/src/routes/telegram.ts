@@ -12,14 +12,10 @@ import { ValidationError, NotFoundError, InsufficientFundsError } from '../lib/e
 
 const router = Router();
 
-/**
- * Generate a real Solana wallet for a Telegram user.
- * Uses the same secure keypair generation as the web auth.
- */
+import { generateBotWallet } from '@front-protocol/solana';
+
 function generateTelegramBotWallet(): { address: string; encryptedKey: string } {
-  // Use the real Solana keypair generator from the solana package
-  const { generateBotWallet: genWallet } = require('@front-protocol/solana');
-  const wallet = genWallet();
+  const wallet = generateBotWallet();
   return {
     address: wallet.publicKey,
     encryptedKey: wallet.encryptedPrivateKey,
@@ -35,7 +31,12 @@ function generateTelegramBotWallet(): { address: string; encryptedKey: string } 
 router.post('/wallet', verifyTelegramAuth, async (req, res) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const telegramId = BigInt(authReq.telegramId!);
+    let telegramId: bigint;
+    try {
+      telegramId = BigInt(authReq.telegramId!);
+    } catch {
+      throw new ValidationError('Invalid Telegram ID — must be a numeric string');
+    }
 
     // Check if user already has a wallet
     let user = await prisma.telegramUser.findUnique({
@@ -82,7 +83,12 @@ router.post('/wallet', verifyTelegramAuth, async (req, res) => {
 router.post('/withdraw', verifyTelegramAuth, async (req, res) => {
   try {
     const authReq = req as AuthenticatedRequest;
-    const telegramId = BigInt(authReq.telegramId!);
+    let telegramId: bigint;
+    try {
+      telegramId = BigInt(authReq.telegramId!);
+    } catch {
+      throw new ValidationError('Invalid Telegram ID — must be a numeric string');
+    }
 
     const { destinationAddress, amountLamports } = req.body;
 
@@ -98,7 +104,12 @@ router.post('/withdraw', verifyTelegramAuth, async (req, res) => {
       throw new ValidationError('Invalid destination address format');
     }
 
-    const amount = BigInt(amountLamports);
+    let amount: bigint;
+    try {
+      amount = BigInt(amountLamports);
+    } catch {
+      throw new ValidationError('Invalid amount — must be a numeric string');
+    }
     if (amount <= 0n) {
       throw new ValidationError('Amount must be positive');
     }
@@ -142,16 +153,21 @@ router.post('/withdraw', verifyTelegramAuth, async (req, res) => {
  * Get the bot wallet balance for a Telegram user.
  * Returns wallet address and balance info.
  */
-router.get('/balance/:telegramId', async (req, res) => {
+router.get('/balance/:telegramId', verifyTelegramAuth, async (req, res) => {
   try {
-    const telegramId = BigInt(req.params.telegramId);
+    let telegramId: bigint;
+    try {
+      telegramId = BigInt(req.params.telegramId as string);
+    } catch {
+      throw new ValidationError('Invalid Telegram ID — must be a numeric string');
+    }
 
     const user = await prisma.telegramUser.findUnique({
       where: { telegramId },
     });
 
     if (!user) {
-      throw new NotFoundError('Telegram user', req.params.telegramId);
+      throw new NotFoundError('Telegram user', req.params.telegramId as string);
     }
 
     // In production, query the actual on-chain balance via @solana/web3.js

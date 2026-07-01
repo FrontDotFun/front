@@ -20,14 +20,21 @@ const DEFAULT_JUPITER_API_URL = 'https://api.jup.ag';
 /** Max retries for swap execution */
 const MAX_RETRIES = 2;
 
-/** Create a configured Jupiter API client */
+/** Cached Jupiter API client singleton */
+let _jupiterClient: ReturnType<typeof createJupiterApiClient> | null = null;
+
+/** Get or create a configured Jupiter API client (singleton) */
 export function createJupiterClient() {
+  if (_jupiterClient) {
+    return _jupiterClient;
+  }
+
   const basePath = process.env.JUPITER_API_URL ?? DEFAULT_JUPITER_API_URL;
 
   console.log(`${LOG_PREFIX} Creating Jupiter client → ${basePath}`);
 
-  const client = createJupiterApiClient({ basePath });
-  return client;
+  _jupiterClient = createJupiterApiClient({ basePath });
+  return _jupiterClient;
 }
 
 /** Result of a swap execution */
@@ -101,60 +108,59 @@ async function executeSwap(
   const client = createJupiterClient();
   const connection = getConnection();
 
-  // 1. Get quote
-  const quote = await client.quoteGet({
-    inputMint,
-    outputMint,
-    amount: Number(amount),
-    slippageBps,
-  });
-
-  console.log(
-    `${LOG_PREFIX} Swap quote: in=${quote.inAmount} out=${quote.outAmount} impact=${quote.priceImpactPct}%`,
-  );
-
-  // Price impact guard — reject swaps that move the market too much
-  const priceImpact = parseFloat(quote.priceImpactPct);
-  if (priceImpact > 5) {
-    throw new Error(
-      `Price impact too high: ${priceImpact.toFixed(2)}%. Maximum allowed is 5%. ` +
-      `Try a smaller position size or pick a token with more liquidity.`,
-    );
-  }
-
-  // 2. Get serialized swap transaction
-  const swapResponse = await client.swapPost({
-    swapRequest: {
-      quoteResponse: quote,
-      userPublicKey: payerKeypair.publicKey.toBase58(),
-      wrapAndUnwrapSol: true,
-      dynamicComputeUnitLimit: true,
-      prioritizationFeeLamports: {
-        priorityLevelWithMaxLamports: {
-          priorityLevel: 'high',
-          maxLamports: 1_000_000,
-        },
-      },
-    },
-  });
-
-  // 3. Deserialize and sign the transaction
-  const swapTransactionBuf = Buffer.from(
-    swapResponse.swapTransaction,
-    'base64',
-  );
-  const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
-  transaction.sign([payerKeypair]);
-
-  // 4. Send with retries
-  let txSignature: string | undefined;
   let lastError: Error | undefined;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
+      // 1. Get a fresh quote for each attempt
+      const quote = await client.quoteGet({
+        inputMint,
+        outputMint,
+        amount: Number(amount),
+        slippageBps,
+      });
+
+      console.log(
+        `${LOG_PREFIX} Swap quote (attempt ${attempt + 1}): in=${quote.inAmount} out=${quote.outAmount} impact=${quote.priceImpactPct}%`,
+      );
+
+      // Price impact guard — reject swaps that move the market too much
+      const priceImpact = parseFloat(quote.priceImpactPct);
+      if (priceImpact > 5) {
+        throw new Error(
+          `Price impact too high: ${priceImpact.toFixed(2)}%. Maximum allowed is 5%. ` +
+          `Try a smaller position size or pick a token with more liquidity.`,
+        );
+      }
+
+      // 2. Get serialized swap transaction (fresh blockhash each attempt)
+      const swapResponse = await client.swapPost({
+        swapRequest: {
+          quoteResponse: quote,
+          userPublicKey: payerKeypair.publicKey.toBase58(),
+          wrapAndUnwrapSol: true,
+          dynamicComputeUnitLimit: true,
+          prioritizationFeeLamports: {
+            priorityLevelWithMaxLamports: {
+              priorityLevel: 'high',
+              maxLamports: 1_000_000,
+            },
+          },
+        },
+      });
+
+      // 3. Deserialize and sign the transaction
+      const swapTransactionBuf = Buffer.from(
+        swapResponse.swapTransaction,
+        'base64',
+      );
+      const transaction = VersionedTransaction.deserialize(swapTransactionBuf);
+      transaction.sign([payerKeypair]);
+
+      // 4. Send transaction
       const rawTransaction = transaction.serialize();
 
-      txSignature = await connection.sendRawTransaction(rawTransaction, {
+      const txSignature = await connection.sendRawTransaction(rawTransaction, {
         skipPreflight: true,
         maxRetries: 2,
       });

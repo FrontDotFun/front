@@ -12,8 +12,6 @@ import {
   calculatePositionSize,
   calculateFlatFee,
   getExitThresholdPercent,
-  calculatePnL,
-  calculateFullDistribution,
   LAMPORTS_PER_SOL,
   type Tier,
 } from '@front-protocol/core';
@@ -25,13 +23,12 @@ import {
   getSolBalance,
   getTokenBalance,
   transferSol,
-  getConnection,
-  SOL_MINT,
 } from '@front-protocol/solana';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { tradingLimiter } from '../middleware/rateLimit';
 import { sendSuccess, sendError, sendPaginated } from '../lib/response';
 import { ValidationError, NotFoundError, ForbiddenError } from '../lib/errors';
+import { captureError, trackFinancialOp } from '../lib/monitor';
 
 const router = Router();
 
@@ -87,7 +84,12 @@ router.post(
       }
 
       const tier = token.tier as Tier;
-      const userCapital = BigInt(userCapitalLamports);
+      let userCapital: bigint;
+      try {
+        userCapital = BigInt(userCapitalLamports);
+      } catch {
+        throw new ValidationError('Invalid capital amount — must be a numeric string');
+      }
 
       // Get current pool balance from ledger
       const poolAgg = await prisma.poolLedger.aggregate({
@@ -209,51 +211,59 @@ router.post(
       } catch (swapErr) {
         // Swap failed — refund user's SOL
         console.error(`[positions] Jupiter swap failed, refunding user:`, swapErr);
+        let refundSuccess = false;
         try {
           await transferSol(protocolWallet, userKeypair.publicKey, userCapital);
+          refundSuccess = true;
         } catch (refundErr) {
           console.error(`[positions] CRITICAL: Refund failed!`, refundErr);
         }
         throw new ValidationError(
-          `Token swap failed: ${swapErr instanceof Error ? swapErr.message : 'Unknown error'}. Your SOL has been refunded.`,
+          refundSuccess
+            ? `Token swap failed: ${swapErr instanceof Error ? swapErr.message : 'Unknown error'}. Your SOL has been refunded.`
+            : `Token swap failed and automatic refund also failed. Please contact support to recover your ${Number(userCapital) / 1e9} SOL.`,
         );
       }
 
-      // 5. Create position record with on-chain data
-      const position = await prisma.position.create({
-        data: {
-          userWallet: wallet,
-          tokenId: token.id,
-          status: 'open',
-          userCapital: userCapital,
-          protocolCapital: protocolCapital,
-          leverage: Number(leverage),
-          flatFee: flatFee,
-          tier: tier,
-          exitThreshold: exitThreshold,
-          entryPrice: entryPrice,
-          tokensBought: tokensBought,
-          openTx: openTx,
-        },
-        include: {
-          token: {
-            select: {
-              address: true,
-              name: true,
-              symbol: true,
-              tier: true,
+      // 5. Create position record + pool ledger atomically
+      const position = await prisma.$transaction(async (tx) => {
+        const pos = await tx.position.create({
+          data: {
+            userWallet: wallet,
+            tokenId: token.id,
+            status: 'open',
+            userCapital: userCapital,
+            protocolCapital: protocolCapital,
+            leverage: Number(leverage),
+            flatFee: flatFee,
+            tier: tier,
+            exitThreshold: exitThreshold,
+            entryPrice: entryPrice,
+            tokensBought: tokensBought,
+            openTx: openTx,
+          },
+          include: {
+            token: {
+              select: {
+                address: true,
+                name: true,
+                symbol: true,
+                tier: true,
+              },
             },
           },
-        },
-      });
+        });
 
-      // Record pool outflow for protocol capital
-      await prisma.poolLedger.create({
-        data: {
-          type: 'position_open',
-          amount: -protocolCapital,
-          referenceId: position.id,
-        },
+        // Record pool outflow for protocol capital
+        await tx.poolLedger.create({
+          data: {
+            type: 'position_open',
+            amount: -protocolCapital,
+            referenceId: pos.id,
+          },
+        });
+
+        return pos;
       });
 
       sendSuccess(res, {
@@ -316,19 +326,18 @@ router.post(
       if (position.userWallet !== wallet) {
         throw new ForbiddenError('You do not own this position');
       }
-      if (position.status !== 'open') {
-        throw new ValidationError(`Position is already ${position.status}`);
-      }
-
       if (!position.entryPrice || !position.tokensBought) {
         throw new ValidationError('Position missing entry data — cannot close');
       }
 
-      // Set status to 'closing' immediately to prevent concurrent close attempts
-      await prisma.position.update({
-        where: { id: positionId },
+      // Atomically set status to 'closing' — prevents concurrent close attempts (double-spend)
+      const updated = await prisma.position.updateMany({
+        where: { id: positionId, status: 'open' },
         data: { status: 'closing' },
       });
+      if (updated.count === 0) {
+        throw new ValidationError(`Position is already ${position.status} or being closed`);
+      }
 
       const entryPrice = Number(position.entryPrice);
       const tokensBought = position.tokensBought;
@@ -396,8 +405,9 @@ router.post(
             ? solReceived - protocolCapitalLamports - flatFeeLamports
             : 0n); // user lost everything
 
-      // Protocol gets back: their capital + fee + pool share
-      const protocolReturnLamports = protocolCapitalLamports + flatFeeLamports + poolReturnLamports;
+      // Protocol gets back: their capital + pool's share of the flat fee
+      // (flat fee is split: 30% creator + 20% burn + 50% pool — pool share IS the protocol revenue)
+      const protocolReturnLamports = protocolCapitalLamports + poolReturnLamports;
 
       // Determine status
       const finalStatus = isProfitable ? 'closed_profit' : 'closed_loss';
@@ -408,7 +418,21 @@ router.post(
           await transferSol(protocolWallet, wallet, userReturnLamports);
           console.log(`[positions] Returned ${Number(userReturnLamports) / 1e9} SOL to user ${wallet}`);
         } catch (returnErr) {
+          captureError(returnErr instanceof Error ? returnErr : new Error(String(returnErr)), {
+            userId: wallet,
+            positionId,
+            action: 'sol_return_failed',
+            metadata: { amountLamports: userReturnLamports.toString() },
+          });
           console.error(`[positions] CRITICAL: Failed to return SOL to user:`, returnErr);
+          // Revert position status so funds can be recovered on retry
+          await prisma.position.update({
+            where: { id: positionId },
+            data: { status: 'open' },
+          });
+          throw new ValidationError(
+            'Failed to return SOL to your wallet. Position has been reverted to open. Please try again.',
+          );
         }
       }
 
@@ -503,6 +527,7 @@ router.get(
           },
         },
         orderBy: { openedAt: 'desc' },
+        take: 50,
       });
 
       // Augment each position with computed live P&L fields
@@ -557,7 +582,7 @@ router.get(
 
       const where = {
         userWallet: wallet,
-        status: { not: 'open' },
+        status: { in: ['closed_profit', 'closed_loss', 'liquidated', 'timed_out'] },
       };
 
       const [positions, total] = await Promise.all([
