@@ -5,13 +5,10 @@
 // Automatically discovers and lists tokens whose creators have directed
 // their pump.fun fee-sharing config to the Front Protocol wallet.
 //
-// No API call needed. No account creation needed. Fully on-chain & trustless.
-//
 // Strategy:
-//   1. WebSocket subscription to the Pump.fun fee program for new sharing configs
-//   2. Periodic scan of existing configs to catch any missed events
-//   3. Verify: 100% allocation to protocol wallet + admin revoked
-//   4. Auto-create Token record in database
+//   1. Periodic scan: fetch latest pump.fun tokens, check fee_recipient
+//   2. Re-verify existing listed tokens to deactivate any that removed fees
+//   3. Only list tokens where fee_recipient === PROTOCOL_WALLET
 //
 
 import { Worker, type Job } from 'bullmq';
@@ -20,9 +17,7 @@ import { determineTier } from '@front-protocol/core';
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[listing-scanner]';
-
-/** Pump.fun fee program ID */
-const PUMP_FEE_PROGRAM_ID = '6LDfGEEswzmifSrNFPz8u16BfzPEFdL8cQhKj7GHPLWX';
+const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || '2uNqHvi3RrkFaFmtBM2KT9eWBDEqoj2eomL97A2v9hoM';
 
 interface ListingScanJobData {
   /** When set, only scan a specific mint address */
@@ -30,15 +25,18 @@ interface ListingScanJobData {
 }
 
 /**
- * Fetch token metadata from Pump.fun API.
+ * Verify a token's fee_recipient via pump.fun API.
+ * Returns the full token data if fees are redirected to protocol, null otherwise.
  */
-async function fetchTokenMetadata(mint: string): Promise<{
+async function verifyFeeRedirect(mint: string): Promise<{
+  verified: boolean;
   name: string;
   symbol: string;
   creator: string;
   imageUri: string;
   marketCap: number;
   complete: boolean;
+  feeRecipient: string | null;
 } | null> {
   try {
     const response = await fetch(`https://frontend-api-v3.pump.fun/coins/${mint}`, {
@@ -49,32 +47,27 @@ async function fetchTokenMetadata(mint: string): Promise<{
     if (!response.ok) return null;
 
     const data = await response.json() as Record<string, unknown>;
+    const feeRecipient = (data.fee_recipient as string) || (data.creator_fee_wallet as string) || null;
+
     return {
+      verified: feeRecipient === PROTOCOL_WALLET,
       name: (data.name as string) || 'Unknown',
       symbol: (data.symbol as string) || '???',
       creator: (data.creator as string) || '',
       imageUri: (data.image_uri as string) || '',
-      marketCap: (data.usdMarketCap as number) || 0,
+      marketCap: (data.usdMarketCap as number) || (data.market_cap as number) || 0,
       complete: (data.complete as boolean) || false,
+      feeRecipient,
     };
   } catch {
     return null;
   }
 }
 
-
-
 /**
  * Process a listing scan job.
- * Checks for new tokens whose fee sharing points to the protocol wallet.
- *
- * In production, this would:
- *   1. Subscribe to Solana WebSocket for program account changes on the Pump fee program
- *   2. Parse each new/updated sharing config PDA
- *   3. Verify 100% allocation to protocol wallet + admin revoked
- *   4. Auto-list the token
- *
- * For now, this is called periodically via BullMQ repeatable job.
+ * 1. Scans latest pump.fun tokens for new fee-verified listings
+ * 2. Re-verifies existing listed tokens
  */
 async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
   const startTime = Date.now();
@@ -87,10 +80,9 @@ async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
       return;
     }
 
-    // Full scan mode: query recent Pump.fun token creations
-    console.log(`${PREFIX} Full scan mode — fetching latest tokens from Pump.fun`);
-
-    let latestTokens: Array<{ mint: string }> = [];
+    // ── Part 1: Scan for new tokens ──
+    console.log(`${PREFIX} Scanning latest pump.fun tokens...`);
+    let newListings = 0;
 
     try {
       const response = await fetch('https://frontend-api-v3.pump.fun/coins/latest', {
@@ -98,52 +90,81 @@ async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
         headers: { Accept: 'application/json' },
       });
 
-      if (!response.ok) {
-        console.error(`${PREFIX} Pump.fun API returned ${response.status} — skipping full scan`);
-        return;
+      if (response.ok) {
+        const data = await response.json() as Array<Record<string, unknown>>;
+        if (Array.isArray(data)) {
+          const mints = data
+            .map((t) => (t.mint as string) || '')
+            .filter((m) => m.length > 0);
+
+          console.log(`${PREFIX} Fetched ${mints.length} latest token(s)`);
+
+          const MAX_NEW_PER_SCAN = 10;
+          for (const mint of mints) {
+            if (newListings >= MAX_NEW_PER_SCAN) break;
+            try {
+              const listed = await checkAndListToken(mint);
+              if (listed) newListings++;
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              console.error(`${PREFIX} Error checking ${mint.substring(0, 8)}…: ${msg}`);
+            }
+          }
+        }
+      } else {
+        console.warn(`${PREFIX} Pump.fun API returned ${response.status}`);
       }
-
-      const data = await response.json() as Array<Record<string, unknown>>;
-
-      if (!Array.isArray(data)) {
-        console.error(`${PREFIX} Unexpected response format from Pump.fun API`);
-        return;
-      }
-
-      latestTokens = data.map((t) => ({ mint: (t.mint as string) || '' })).filter((t) => t.mint);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`${PREFIX} Failed to fetch latest tokens from Pump.fun: ${msg}`);
-      return; // don't crash the worker
+      console.error(`${PREFIX} Failed to fetch latest tokens: ${msg}`);
     }
 
-    console.log(`${PREFIX} Fetched ${latestTokens.length} token(s) from Pump.fun`);
+    // ── Part 2: Re-verify existing listed tokens ──
+    console.log(`${PREFIX} Re-verifying existing listed tokens...`);
+    let deactivated = 0;
+    let reactivated = 0;
 
-    // Limit to processing 10 new tokens per scan to avoid overload
-    const MAX_NEW_PER_SCAN = 10;
-    let newListings = 0;
+    const existingTokens = await prisma.token.findMany({
+      where: {},
+      select: { id: true, address: true, symbol: true, isActive: true },
+    });
 
-    for (const token of latestTokens) {
-      if (newListings >= MAX_NEW_PER_SCAN) {
-        console.log(`${PREFIX} Reached max ${MAX_NEW_PER_SCAN} new listings per scan — stopping`);
-        break;
-      }
-
+    for (const token of existingTokens) {
       try {
-        const listed = await checkAndListToken(token.mint);
-        if (listed) {
-          newListings++;
+        const result = await verifyFeeRedirect(token.address);
+        if (!result) {
+          console.warn(`${PREFIX} Could not verify ${token.symbol} (${token.address.substring(0, 8)}…) — API unavailable`);
+          continue;
+        }
+
+        if (!result.verified && token.isActive) {
+          // Fee no longer points to protocol — deactivate
+          await prisma.token.update({
+            where: { id: token.id },
+            data: { isActive: false },
+          });
+          deactivated++;
+          console.log(
+            `${PREFIX} ❌ Deactivated ${token.symbol} — fee_recipient is "${result.feeRecipient}", not protocol wallet`,
+          );
+        } else if (result.verified && !token.isActive) {
+          // Fee was re-pointed to protocol — reactivate
+          await prisma.token.update({
+            where: { id: token.id },
+            data: { isActive: true },
+          });
+          reactivated++;
+          console.log(`${PREFIX} ♻️ Reactivated ${token.symbol} — fees now redirected to protocol`);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`${PREFIX} Error processing token ${token.mint.substring(0, 8)}…: ${msg}`);
-        // continue to next token
+        console.error(`${PREFIX} Re-verify error for ${token.symbol}: ${msg}`);
       }
     }
 
     const elapsed = Date.now() - startTime;
     console.log(
-      `${PREFIX} Listing scan complete: ${newListings} new token(s) listed (${elapsed}ms)`,
+      `${PREFIX} Scan complete: ${newListings} new, ${deactivated} deactivated, ${reactivated} reactivated (${elapsed}ms)`,
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -153,53 +174,58 @@ async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
 }
 
 /**
- * Check a specific token's fee sharing config and auto-list if valid.
- * This is the core logic called for each token found during scanning.
+ * Check a specific token's fee redirect and auto-list if verified.
  */
 async function checkAndListToken(mint: string): Promise<boolean> {
-  console.log(`${PREFIX} Checking token ${mint.substring(0, 8)}…`);
-
   // Check if already listed
   const existing = await prisma.token.findUnique({
     where: { address: mint },
     select: { id: true, isActive: true },
   });
 
-  if (existing) {
-    console.log(`${PREFIX} Token ${mint.substring(0, 8)}… already listed`);
+  if (existing) return false;
+
+  // Verify fee redirect on pump.fun
+  const result = await verifyFeeRedirect(mint);
+  if (!result) {
     return false;
   }
 
-  // SOLANA: Verify sharing config on-chain
-  // In production this calls verifySharingConfig from pumpfun.ts
-  // which checks:
-  //   1. PDA exists and is owned by Pump fee program
-  //   2. 100% allocation to our protocol wallet
-  //   3. Admin is revoked (config is immutable)
-  //
-  // For now, we simulate the verification:
-  console.log(`${PREFIX} SOLANA: would verify sharing config PDA for ${mint.substring(0, 8)}…`);
-
-  // Fetch token metadata from Pump.fun
-  const metadata = await fetchTokenMetadata(mint);
-  if (!metadata) {
-    console.warn(`${PREFIX} Could not fetch metadata for ${mint.substring(0, 8)}…`);
+  if (!result.verified) {
+    // Fee not redirected to protocol — skip silently
     return false;
   }
 
-  // Determine initial tier
-  // Use core tier logic — estimate liquidity as 10% of marketCap since Pump.fun API doesn't provide it
-  const tierConfig = determineTier(metadata.marketCap, metadata.marketCap * 0.1, metadata.complete);
+  // ✅ Fee verified — auto-list the token
+  // Determine tier from market cap
+  const tierConfig = determineTier(result.marketCap, result.marketCap * 0.1, result.complete);
   const tier = tierConfig ? tierConfig.tier : 'degen';
 
-  // Auto-list the token
+  // Fetch DexScreener for better liquidity data
+  let imageUri = result.imageUri;
+  try {
+    const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, {
+      signal: AbortSignal.timeout(5000),
+    });
+    if (dexRes.ok) {
+      const dexData = await dexRes.json() as any;
+      const pairs = dexData.pairs || [];
+      if (pairs.length > 0) {
+        const bestPair = pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+        imageUri = bestPair.info?.imageUrl || imageUri;
+      }
+    }
+  } catch {
+    // Use pump.fun image as fallback
+  }
+
   await prisma.token.create({
     data: {
       address: mint,
-      name: metadata.name,
-      symbol: metadata.symbol,
-      imageUri: metadata.imageUri,
-      creatorWallet: metadata.creator,
+      name: result.name,
+      symbol: result.symbol,
+      imageUri,
+      creatorWallet: result.creator,
       tier,
       isActive: true,
       isAutoListed: true,
@@ -207,9 +233,9 @@ async function checkAndListToken(mint: string): Promise<boolean> {
   });
 
   console.log(
-    `${PREFIX} ✅ Auto-listed ${metadata.symbol} (${metadata.name}) | ` +
-    `tier=${tier} | creator=${metadata.creator.substring(0, 8)}… | ` +
-    `mcap=$${metadata.marketCap.toLocaleString()}`,
+    `${PREFIX} ✅ Auto-listed ${result.symbol} (${result.name}) | ` +
+    `tier=${tier} | fee_recipient=${PROTOCOL_WALLET.substring(0, 8)}… | ` +
+    `mcap=$${result.marketCap.toLocaleString()}`,
   );
 
   return true;
