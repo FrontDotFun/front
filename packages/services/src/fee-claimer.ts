@@ -277,8 +277,8 @@ export async function scheduleFeeClaimer(): Promise<void> {
     await feeClaimsQueue.removeRepeatableByKey(job.key);
   }
 
-  // Run every 30 minutes
-  const intervalMs = 30 * 60 * 1000;
+  // Run every 10 minutes
+  const intervalMs = 10 * 60 * 1000;
 
   await feeClaimsQueue.add(
     'claim-all-fees',
@@ -290,5 +290,5 @@ export async function scheduleFeeClaimer(): Promise<void> {
     },
   );
 
-  console.log(`${PREFIX} Scheduled fee claims every 30 minutes`);
+  console.log(`${PREFIX} Scheduled fee claims every 10 minutes`);
 }
