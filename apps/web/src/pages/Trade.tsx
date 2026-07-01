@@ -96,7 +96,7 @@ export const Trade: FC = () => {
   const positionSize = collateralSol * leverage;
   const protocolCapital = collateralSol * (leverage - 1);
   const flatFee = positionSize * 0.005;
-  const exitThreshold = selectedToken?.exitThresholdPct ? -Math.abs(selectedToken.exitThresholdPct) : selectedToken?.tier === 'bonded' ? -15 : selectedToken?.tier === 'rising' ? -12 : -10;
+  const exitThreshold = -(100 / leverage); // dynamic: 3x→-33%, 5x→-20%, 7x→-14%
   const markPrice = tokenOverview?.price ?? 0;
   const tpPct = parseFloat(takeProfitPct) || 0;
   const slPct = parseFloat(stopLossPct) || 0;
@@ -594,7 +594,7 @@ export const Trade: FC = () => {
                   <div className="exec-row">
                     <span>Liquidation</span>
                     <div style={{ textAlign: 'right' }}>
-                      <span className="mono" style={{ color: 'var(--red)' }}>{exitThreshold}%</span>
+                      <span className="mono" style={{ color: 'var(--red)' }}>{exitThreshold.toFixed(1)}%</span>
                       {liqPrice > 0 && (
                         <span className="mono" style={{ color: '#555', fontSize: 10, marginLeft: 4 }}>
                           (${formatPrice(liqPrice)})

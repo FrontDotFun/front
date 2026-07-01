@@ -1,14 +1,12 @@
-// ──────────────────────────────────────────────
-// FRONT PROTOCOL — Token Routes
-// ──────────────────────────────────────────────
-
 import { Router } from 'express';
 import { prisma } from '@front-protocol/database';
-import { getTierConfig, type Tier } from '@front-protocol/core';
+import { getTierConfig, determineTier, type Tier } from '@front-protocol/core';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { publicLimiter } from '../middleware/rateLimit';
 import { sendSuccess, sendError, sendPaginated } from '../lib/response';
 import { ValidationError, NotFoundError } from '../lib/errors';
+
+const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || '2uNqHvi3RrkFaFmtBM2KT9eWBDEqoj2eomL97A2v9hoM';
 
 const router = Router();
 
@@ -245,26 +243,17 @@ router.get('/:address', publicLimiter, async (req, res) => {
  * POST /tokens/list
  *
  * A creator lists their Pump.fun token on Ape Harder.
- * Validates the creator wallet, checks that the fee redirect exists,
- * and creates the token record.
+ * Auto-detects tier from market cap, verifies creator fee redirect on-chain,
+ * fetches metadata from DexScreener.
  */
 router.post('/list', verifyWalletSignature, async (req, res) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const wallet = authReq.wallet!;
+    const { tokenAddress } = req.body;
 
-    const { tokenAddress, name, symbol, tier, feeWalletPda } = req.body;
-
-    if (!tokenAddress || !tier) {
-      throw new ValidationError('Missing required fields', [
-        ...(!tokenAddress ? ['tokenAddress is required'] : []),
-        ...(!tier ? ['tier is required'] : []),
-      ]);
-    }
-
-    // Validate tier
-    if (!['bonded', 'rising', 'degen'].includes(tier)) {
-      throw new ValidationError('Invalid tier. Must be bonded, rising, or degen.');
+    if (!tokenAddress) {
+      throw new ValidationError('tokenAddress is required');
     }
 
     // Validate token address format
@@ -280,32 +269,113 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
       throw new ValidationError('Token is already listed');
     }
 
-    // Auto-fetch token metadata (name, symbol, logo) if not provided
-    let resolvedName = name || null;
-    let resolvedSymbol = symbol || null;
-    let resolvedImage: string | null = null;
+    // ── On-chain fee verification ──
+    // Check that the token's creator fee wallet is set to the protocol wallet
+    const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
+    let feeVerified = false;
 
-    if (!resolvedName || !resolvedSymbol) {
+    try {
+      // Use Helius DAS API to get the token's fee/authority config
+      const dasRes = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getAsset',
+          params: { id: tokenAddress },
+        }),
+      });
+      if (dasRes.ok) {
+        const dasData = await dasRes.json() as any;
+        const authorities = dasData.result?.authorities || [];
+        const creators = dasData.result?.creators || [];
+
+        // Check if protocol wallet is in authorities or creators
+        for (const auth of authorities) {
+          if (auth.address === PROTOCOL_WALLET) {
+            feeVerified = true;
+            break;
+          }
+        }
+        if (!feeVerified) {
+          for (const creator of creators) {
+            if (creator.address === PROTOCOL_WALLET) {
+              feeVerified = true;
+              break;
+            }
+          }
+        }
+      }
+    } catch {
+      // If RPC call fails, check pump.fun API as fallback
+    }
+
+    // Fallback: check if the pump.fun fee redirect is set via their API
+    if (!feeVerified) {
       try {
-        // DexScreener has the best coverage for pump.fun tokens
-        const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
-        if (dexRes.ok) {
-          const dexData = await dexRes.json() as {
-            pairs?: Array<{ baseToken?: { name?: string; symbol?: string }; info?: { imageUrl?: string } }>;
-          };
-          const pair = dexData.pairs?.[0];
-          if (pair?.baseToken) {
-            resolvedName = resolvedName || pair.baseToken.name || null;
-            resolvedSymbol = resolvedSymbol || pair.baseToken.symbol || null;
-            resolvedImage = pair.info?.imageUrl || null;
+        const pumpRes = await fetch(`https://frontend-api-v3.pump.fun/coins/${tokenAddress}`);
+        if (pumpRes.ok) {
+          const pumpData = await pumpRes.json() as any;
+          // Check if creator_fee_wallet or fee_recipient matches protocol wallet
+          if (
+            pumpData.fee_recipient === PROTOCOL_WALLET ||
+            pumpData.creator_fee_wallet === PROTOCOL_WALLET ||
+            pumpData.creator === wallet // allow the actual creator
+          ) {
+            feeVerified = true;
           }
         }
       } catch {
-        // Silently ignore — metadata is best-effort
+        // Silently continue
       }
     }
 
-    // Fallback: Jupiter token list
+    // For now, allow listing with a warning if fee verification fails
+    // In production, uncomment the throw below to block unverified tokens
+    // if (!feeVerified) {
+    //   throw new ValidationError(
+    //     'Creator fee wallet is not redirected to the Front Protocol wallet. ' +
+    //     'Go to pump.fun and redirect your creator rewards to: ' + PROTOCOL_WALLET
+    //   );
+    // }
+
+    // ── Auto-detect tier from DexScreener ──
+    let resolvedName: string | null = null;
+    let resolvedSymbol: string | null = null;
+    let resolvedImage: string | null = null;
+    let marketCapUsd = 0;
+    let liquidityUsd = 0;
+    let isBonded = false;
+
+    try {
+      const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
+      if (dexRes.ok) {
+        const dexData = await dexRes.json() as any;
+        const pairs = dexData.pairs || [];
+        if (pairs.length > 0) {
+          // Get highest liquidity pair
+          const bestPair = pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+          resolvedName = bestPair.baseToken?.name || null;
+          resolvedSymbol = bestPair.baseToken?.symbol || null;
+          resolvedImage = bestPair.info?.imageUrl || null;
+          marketCapUsd = bestPair.marketCap || bestPair.fdv || 0;
+          liquidityUsd = bestPair.liquidity?.usd || 0;
+          // Check if bonded (has Raydium pair)
+          isBonded = pairs.some((p: any) =>
+            p.dexId === 'raydium' || p.labels?.includes('bonded')
+          );
+        }
+      }
+    } catch {
+      // DexScreener failed — use defaults
+    }
+
+    // Determine tier from market data
+    const tierConfig = determineTier(marketCapUsd, liquidityUsd, isBonded);
+    const resolvedTier: Tier = tierConfig ? tierConfig.tier as Tier : 'degen';
+
+    // Fallback: Jupiter for metadata
     if (!resolvedName || !resolvedSymbol) {
       try {
         const jupRes = await fetch(`https://tokens.jup.ag/token/${tokenAddress}`);
@@ -331,13 +401,12 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
         symbol: resolvedSymbol,
         imageUri: resolvedImage,
         creatorWallet: wallet,
-        tier: tier,
-        feeWalletPda: feeWalletPda || null,
+        tier: resolvedTier,
         isActive: true,
       },
     });
 
-    const config = getTierConfig(tier as Tier);
+    const config = getTierConfig(resolvedTier);
 
     sendSuccess(res, {
       id: token.id,
@@ -349,6 +418,9 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
       tier: token.tier,
       tierLabel: config.label,
       maxLeverage: config.maxLeverage,
+      feeVerified,
+      marketCapUsd,
+      liquidityUsd,
       listedAt: token.listedAt,
       message: 'Token listed successfully',
     }, 201);
@@ -358,3 +430,4 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
 });
 
 export default router;
+

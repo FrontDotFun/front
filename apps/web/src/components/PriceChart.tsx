@@ -154,7 +154,27 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     });
     resizeObserver.observe(containerRef.current);
 
+    // Fix chart freeze when switching tabs
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible' && chartRef.current && containerRef.current) {
+        // Force resize to unstick the chart after tab switch
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        chartRef.current.applyOptions({ width, height });
+        chartRef.current.timeScale().fitContent();
+        // Delayed second resize for layout reflow
+        requestAnimationFrame(() => {
+          if (chartRef.current && containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect();
+            chartRef.current.applyOptions({ width: rect.width, height: rect.height });
+            chartRef.current.timeScale().scrollToRealTime();
+          }
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;

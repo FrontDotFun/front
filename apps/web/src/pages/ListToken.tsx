@@ -36,19 +36,8 @@ const inputStyle = {
   outline: 'none',
 } as const;
 
-type Tier = 'bonded' | 'rising' | 'degen';
-
-const tierOptions: { value: Tier; label: string; desc: string; color: string }[] = [
-  { value: 'bonded', label: 'Bonded', desc: 'Bonded on Raydium, max 7x leverage', color: '#00c853' },
-  { value: 'rising', label: 'Rising', desc: 'High momentum, max 5x leverage', color: '#f0b90b' },
-  { value: 'degen', label: 'Degen', desc: 'Early stage, max 3x leverage', color: '#ff3b3b' },
-];
-
 export const ListToken: FC = () => {
   const [tokenAddress, setTokenAddress] = useState('');
-  const [tier, setTier] = useState<Tier>('degen');
-  const [name, setName] = useState('');
-  const [symbol, setSymbol] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
 
@@ -69,11 +58,12 @@ export const ListToken: FC = () => {
     setResult(null);
 
     try {
-      const res = await api.listToken(addr, tier, name.trim() || undefined, symbol.trim() || undefined);
-      setResult({ success: true, message: res.message || 'Token listed successfully' });
+      const res = await api.listToken(addr);
+      setResult({
+        success: true,
+        message: `${res.name || 'Token'} (${res.symbol || addr.slice(0, 6)}) listed as ${res.tierLabel || res.tier} — up to ${res.maxLeverage}x leverage`,
+      });
       setTokenAddress('');
-      setName('');
-      setSymbol('');
     } catch (err) {
       setResult({
         success: false,
@@ -89,14 +79,14 @@ export const ListToken: FC = () => {
       <div>
         <h2 style={{ marginBottom: 4 }}>List Your Token</h2>
         <p className="text-muted" style={{ fontSize: '0.93rem', margin: 0 }}>
-          List your Pump.fun token on Front to enable leveraged trading.
+          Redirect your pump.fun creator fees to the Front Protocol wallet, then paste your token address below. Tier, name, and logo are auto-detected.
         </p>
       </div>
 
       {/* Protocol Wallet */}
       <div className="card" style={{ padding: '16px 20px' }}>
         <span className="text-muted" style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Protocol Wallet — Redirect Creator Rewards Here
+          Step 1 — Redirect Creator Rewards to This Wallet
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
           <code className="mono" style={{ fontSize: '0.86rem', color: 'var(--text-0)', flex: 1, wordBreak: 'break-all' }}>
@@ -112,7 +102,7 @@ export const ListToken: FC = () => {
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div>
           <label style={{ fontSize: '0.82rem', color: 'var(--text-1)', marginBottom: 6, display: 'block' }}>
-            Token Contract Address
+            Step 2 — Paste Token Contract Address
           </label>
           <input
             type="text"
@@ -122,59 +112,8 @@ export const ListToken: FC = () => {
             style={inputStyle}
             required
           />
-        </div>
-
-        <div style={{ display: 'flex', gap: 12 }}>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: '0.82rem', color: 'var(--text-1)', marginBottom: 6, display: 'block' }}>
-              Name (optional)
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Token name"
-              style={inputStyle}
-            />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label style={{ fontSize: '0.82rem', color: 'var(--text-1)', marginBottom: 6, display: 'block' }}>
-              Symbol (optional)
-            </label>
-            <input
-              type="text"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-              placeholder="e.g. POPCAT"
-              style={inputStyle}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label style={{ fontSize: '0.82rem', color: 'var(--text-1)', marginBottom: 8, display: 'block' }}>
-            Tier
-          </label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {tierOptions.map((t) => (
-              <button
-                key={t.value}
-                type="button"
-                onClick={() => setTier(t.value)}
-                style={{
-                  flex: 1,
-                  padding: '10px 12px',
-                  background: tier === t.value ? `${t.color}15` : 'var(--bg-1)',
-                  border: `1px solid ${tier === t.value ? t.color : 'var(--border)'}`,
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-              >
-                <div style={{ fontSize: '0.86rem', fontWeight: 600, color: t.color }}>{t.label}</div>
-                <div style={{ fontSize: '0.72rem', color: 'var(--text-1)', marginTop: 2 }}>{t.desc}</div>
-              </button>
-            ))}
+          <div style={{ fontSize: '0.72rem', color: '#555', marginTop: 4 }}>
+            Tier is auto-detected by market cap. Creator fee wallet is verified on-chain.
           </div>
         </div>
 
@@ -195,7 +134,7 @@ export const ListToken: FC = () => {
             width: '100%',
           }}
         >
-          {loading ? 'Listing...' : 'List Token'}
+          {loading ? 'Verifying & Listing...' : 'List Token'}
         </button>
 
         {result && (
@@ -216,8 +155,9 @@ export const ListToken: FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {[
           { title: 'Redirect Creator Rewards', desc: 'On Pump.fun, redirect your token\'s creator rewards to the Front Protocol wallet above. This funds the capital pool for leveraged trading.' },
-          { title: 'Submit Your Token', desc: 'Paste your token contract address above and select the tier. The protocol verifies the token on-chain.' },
-          { title: 'Live on Front', desc: 'Your token appears on the trading page. Traders can take leveraged positions, driving volume and attention.' },
+          { title: 'Paste Token Address', desc: 'Paste your token contract address above. Front auto-detects your token\'s name, symbol, logo, and risk tier based on market cap.' },
+          { title: 'On-Chain Verification', desc: 'Front verifies on-chain that your creator fee wallet is redirected to the protocol. Tokens without valid fee redirects are rejected.' },
+          { title: 'Live on Front', desc: 'Your token appears on the Explore page. Traders can take leveraged positions, driving volume and attention to your token.' },
         ].map((step, i) => (
           <div key={i} style={stepStyle}>
             <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>

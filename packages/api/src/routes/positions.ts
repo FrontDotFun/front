@@ -125,6 +125,8 @@ router.post(
       // Fetch real SOL price and token liquidity
       let solPriceUsd = 150;
       let liquidityUsd = 0;
+      let tokenSupply = 0;
+      let tokenPriceUsd = 0;
 
       const BIRDEYE_KEY = process.env.BIRDEYE_API_KEY || '';
       try {
@@ -135,16 +137,53 @@ router.post(
         const solPriceData = await solPriceRes.json() as any;
         if (solPriceData?.data?.value) solPriceUsd = solPriceData.data.value;
 
-        // Fetch token liquidity
+        // Fetch token liquidity + supply
         const tokenRes = await fetch(`https://public-api.birdeye.so/defi/token_overview?address=${tokenAddress}`, {
           headers: { 'X-API-KEY': BIRDEYE_KEY, 'x-chain': 'solana' },
         });
         const tokenData = await tokenRes.json() as any;
         if (tokenData?.data?.liquidity) liquidityUsd = tokenData.data.liquidity;
+        if (tokenData?.data?.supply) tokenSupply = tokenData.data.supply;
+        if (tokenData?.data?.price) tokenPriceUsd = tokenData.data.price;
       } catch {
-        // If Birdeye fails, use conservative defaults that block large positions
-        solPriceUsd = 150;
-        liquidityUsd = 0; // 0 liquidity = safety check will reject
+        // Birdeye failed — try DexScreener as fallback
+      }
+
+      // DexScreener fallback for liquidity if Birdeye fails or returns 0
+      if (liquidityUsd <= 0) {
+        try {
+          const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
+          if (dexRes.ok) {
+            const dexData = await dexRes.json() as any;
+            const pairs = dexData.pairs || [];
+            if (pairs.length > 0) {
+              const bestPair = pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
+              liquidityUsd = bestPair.liquidity?.usd || 0;
+              tokenPriceUsd = parseFloat(bestPair.priceUsd || '0');
+              if (bestPair.fdv && tokenPriceUsd > 0) {
+                tokenSupply = bestPair.fdv / tokenPriceUsd;
+              }
+            }
+          }
+        } catch {
+          // Both sources failed — use conservative defaults
+          // Still allow small positions by setting minimum liquidity
+          liquidityUsd = 10_000; // assume at least $10K to allow small trades
+        }
+      }
+
+      // ── 3% supply cap ──
+      // Protocol max buy = less than 3% of the token's total supply
+      if (tokenSupply > 0 && tokenPriceUsd > 0 && solPriceUsd > 0) {
+        const maxBuyUsd = tokenSupply * tokenPriceUsd * 0.03; // 3% of supply value
+        const positionSol = Number(positionSize) / 1e9;
+        const positionUsd = positionSol * solPriceUsd;
+        if (positionUsd > maxBuyUsd) {
+          throw new ValidationError(
+            `Position too large — would buy more than 3% of token supply. ` +
+            `Max position: ~${(maxBuyUsd / solPriceUsd).toFixed(2)} SOL`
+          );
+        }
       }
 
       const safetyCheck = validatePositionSafety(

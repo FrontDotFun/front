@@ -837,7 +837,7 @@ export const Landing: FC = () => {
           <Link to="/docs" style={{ fontSize: 13, color: '#666', textDecoration: 'none' }}>Docs</Link>
         </div>
         <Link
-          to="/trade"
+          to="/explore"
           style={{
             padding: '8px 20px',
             background: '#f0b90b',
@@ -932,7 +932,7 @@ export const Landing: FC = () => {
           transition={{ duration: 0.5, delay: 0.3 }}
         >
           <Link
-            to="/trade"
+            to="/explore"
             style={{
               padding: '12px 32px',
               background: '#f0b90b',
@@ -1080,7 +1080,7 @@ export const Landing: FC = () => {
           Ready to trade with leverage?
         </h2>
         <Link
-          to="/trade"
+          to="/explore"
           style={{
             display: 'inline-block',
             padding: '14px 40px',

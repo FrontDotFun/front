@@ -449,13 +449,18 @@ export function claimCreatorEarnings(tokenAddress: string): Promise<{
 
 export function listToken(
   tokenAddress: string,
-  tier: string = 'degen',
-  name?: string,
-  symbol?: string,
-): Promise<{ success: boolean; message: string }> {
+): Promise<{
+  success: boolean;
+  message: string;
+  name?: string;
+  symbol?: string;
+  tier?: string;
+  tierLabel?: string;
+  maxLeverage?: number;
+}> {
   return request('/tokens/list', {
     method: 'POST',
-    body: JSON.stringify({ tokenAddress, tier, name, symbol }),
+    body: JSON.stringify({ tokenAddress }),
   });
 }
 

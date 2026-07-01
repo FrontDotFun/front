@@ -110,9 +110,6 @@ export const Layout: FC = () => {
           <NavLink to="/portfolio" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
             Holdings
           </NavLink>
-          <NavLink to="/creator" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Creator
-          </NavLink>
           <NavLink to="/locks" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
             Locks
           </NavLink>
