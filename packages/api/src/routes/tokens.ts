@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { prisma } from '@front-protocol/database';
 import { getTierConfig, determineTier, type Tier } from '@front-protocol/core';
+import { getConnection, PublicKey } from '@front-protocol/solana';
+import { feeSharingConfigPda, PumpSdk } from '@pump-fun/pump-sdk';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { publicLimiter } from '../middleware/rateLimit';
 import { sendSuccess, sendError, sendPaginated } from '../lib/response';
@@ -290,36 +292,28 @@ router.post('/list', verifyWalletSignature, async (req, res) => {
           feeVerified = true;
         }
 
-        // Method 2: Check on-chain via Helius — look for the sharing config PDA
+        // Method 2: Check on-chain sharing config via Pump SDK
         if (!feeVerified) {
-          const rpcUrl = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
           try {
-            // Search for token accounts where the protocol wallet is involved
-            // with this specific token mint
-            const searchRes = await fetch(rpcUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                jsonrpc: '2.0',
-                id: 1,
-                method: 'getTokenAccountsByOwner',
-                params: [
-                  PROTOCOL_WALLET,
-                  { mint: tokenAddress },
-                  { encoding: 'jsonParsed' },
-                ],
-              }),
-            });
-            if (searchRes.ok) {
-              const searchData = await searchRes.json() as any;
-              // If protocol wallet has a token account for this mint,
-              // it suggests fee sharing is configured
-              if (searchData.result?.value?.length > 0) {
-                feeVerified = true;
+            const connection = getConnection();
+            const mintPubkey = new PublicKey(tokenAddress);
+            const sharingPda = feeSharingConfigPda(mintPubkey);
+            const sharingInfo = await connection.getAccountInfo(sharingPda);
+
+            if (sharingInfo) {
+              const pumpSdk = new PumpSdk(connection as any);
+              const config = pumpSdk.decodeSharingConfig(sharingInfo);
+              const shareholders = (config as any).shareholders || (config as any).shares || [];
+              for (const sh of shareholders) {
+                const addr = sh.address?.toBase58?.() || sh.wallet?.toBase58?.() || String(sh.address || sh.wallet || '');
+                if (addr === PROTOCOL_WALLET) {
+                  feeVerified = true;
+                  break;
+                }
               }
             }
           } catch {
-            // RPC check failed — continue to next method
+            // On-chain check failed — continue to next method
           }
         }
 
