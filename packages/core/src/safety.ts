@@ -154,24 +154,8 @@ export function validatePositionSafety(
     };
   }
 
-  // Check 2: Position size vs liquidity (market impact)
-  const maxSize = maxSafePositionSize(liquidityUsd, solPriceUsd, tier);
-  if (maxSize > 0n && positionSizeLamports > maxSize) {
-    return {
-      safe: false,
-      reason: 'Position too large relative to token liquidity — exit slippage would be too high',
-    };
-  }
+  // Check 2: Only the 3% supply cap matters (enforced in positions.ts).
+  // Liquidity-based limits removed — they were too restrictive for pump.fun tokens.
 
-  // Check 3: Slippage risk assessment
-  const slippageRisk = estimateSlippageRisk(positionSizeLamports, liquidityUsd, solPriceUsd);
-  if (slippageRisk > 95) {
-    return {
-      safe: false,
-      reason: 'Slippage risk too high — token liquidity too thin for this position size',
-      slippageRisk,
-    };
-  }
-
-  return { safe: true, slippageRisk };
+  return { safe: true };
 }
