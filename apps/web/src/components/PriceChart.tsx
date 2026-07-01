@@ -36,6 +36,7 @@ export interface ChartPosition {
 interface PriceChartProps {
   tokenAddress?: string;
   positions?: ChartPosition[];
+  supply?: number;
 }
 
 const TIMEFRAMES = ['1S', '5S', '15S', '30S', '1', '3', '5', '15', '30', '60', '240', 'D'] as const;
@@ -57,7 +58,10 @@ const INTERVAL_SECS: Record<string, number> = {
  * Supports 1-second to daily candles with real-time WebSocket streaming.
  * Draws entry, liquidation, TP, and SL price lines for active positions.
  */
-export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions }) => {
+export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, supply }) => {
+  const supplyRef = useRef(supply ?? 0);
+  // Keep supply in sync
+  useEffect(() => { supplyRef.current = supply ?? 0; }, [supply]);
   const [interval, setInterval_] = useState('1');
   const [source, setSource] = useState<'birdeye-live' | 'birdeye-embed'>('birdeye-live');
   const [loading, setLoading] = useState(false);
@@ -115,6 +119,17 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions }) => 
       borderDownColor: '#ff3b3b',
       wickUpColor: '#00c85380',
       wickDownColor: '#ff3b3b80',
+      priceFormat: {
+        type: 'custom',
+        formatter: (price: number) => {
+          if (price >= 1_000_000_000) return `${(price / 1_000_000_000).toFixed(2)}B`;
+          if (price >= 1_000_000) return `${(price / 1_000_000).toFixed(2)}M`;
+          if (price >= 1_000) return `${(price / 1_000).toFixed(1)}K`;
+          if (price >= 1) return price.toFixed(2);
+          if (price >= 0.01) return price.toFixed(4);
+          return price.toPrecision(4);
+        },
+      },
     });
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -162,11 +177,14 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions }) => 
 
     if (!positions || positions.length === 0) return;
 
+    const s = supplyRef.current;
+    const multiplier = s > 0 ? s : 1;
+
     for (const pos of positions) {
       // Entry price line — gold dashed
       if (pos.entryPrice > 0) {
         const entryLine = candleSeries.createPriceLine({
-          price: pos.entryPrice,
+          price: pos.entryPrice * multiplier,
           color: '#f0b90b',
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
@@ -179,7 +197,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions }) => 
       // Liquidation price line — red solid
       if (pos.liquidationPrice > 0) {
         const liqLine = candleSeries.createPriceLine({
-          price: pos.liquidationPrice,
+          price: pos.liquidationPrice * multiplier,
           color: '#ff3b3b',
           lineWidth: 1,
           lineStyle: LineStyle.Solid,
@@ -192,7 +210,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions }) => 
       // Take profit line — green dashed
       if (pos.takeProfitPrice && pos.takeProfitPrice > 0) {
         const tpLine = candleSeries.createPriceLine({
-          price: pos.takeProfitPrice,
+          price: pos.takeProfitPrice * multiplier,
           color: '#00c853',
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
@@ -205,7 +223,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions }) => 
       // Stop loss line — orange dashed
       if (pos.stopLossPrice && pos.stopLossPrice > 0) {
         const slLine = candleSeries.createPriceLine({
-          price: pos.stopLossPrice,
+          price: pos.stopLossPrice * multiplier,
           color: '#ff6d00',
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
@@ -238,13 +256,17 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions }) => 
 
       barsRef.current = bars;
 
-      // Set candle data
+      // Multiply by supply to show market cap on Y-axis
+      const s = supplyRef.current;
+      const multiplier = s > 0 ? s : 1;
+
+      // Set candle data (market cap values)
       const candleData: CandlestickData[] = bars.map((b) => ({
         time: b.time as Time,
-        open: b.open,
-        high: b.high,
-        low: b.low,
-        close: b.close,
+        open: b.open * multiplier,
+        high: b.high * multiplier,
+        low: b.low * multiplier,
+        close: b.close * multiplier,
       }));
 
       const volumeData: HistogramData[] = bars.map((b) => ({
@@ -318,13 +340,15 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions }) => 
 
       const bar = currentBarRef.current!;
 
-      // Update chart
+      // Update chart (market cap values)
+      const s = supplyRef.current;
+      const multiplier = s > 0 ? s : 1;
       candleSeries.update({
         time: bar.time as Time,
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close,
+        open: bar.open * multiplier,
+        high: bar.high * multiplier,
+        low: bar.low * multiplier,
+        close: bar.close * multiplier,
       });
 
       volumeSeries.update({

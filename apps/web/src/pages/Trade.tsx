@@ -225,6 +225,7 @@ export const Trade: FC = () => {
             <PriceChart
               tokenAddress={selectedToken?.address}
               positions={allChartPositions}
+              supply={tokenOverview?.supply}
             />
           </div>
 
