@@ -152,6 +152,8 @@ async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
     }
 
     // ── Part 2: Re-verify existing listed tokens ──
+    // Only deactivate if we can CONFIRM fees are going somewhere else.
+    // If pump.fun API doesn't expose fee_recipient (null), keep the token active.
     console.log(`${PREFIX} Re-verifying existing listed tokens...`);
     let deactivated = 0;
     let reactivated = 0;
@@ -165,12 +167,21 @@ async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
       try {
         const result = await verifyFeeRedirect(token.address);
         if (!result) {
-          console.warn(`${PREFIX} Could not verify ${token.symbol} (${token.address.substring(0, 8)}…) — API unavailable`);
+          // API unavailable — don't change anything
+          console.warn(`${PREFIX} Could not verify ${token.symbol} — API unavailable, keeping current state`);
           continue;
         }
 
-        if (!result.verified && token.isActive) {
-          // Fee no longer points to protocol — deactivate
+        if (result.verified && !token.isActive) {
+          // Fees confirmed going to protocol — reactivate
+          await prisma.token.update({
+            where: { id: token.id },
+            data: { isActive: true },
+          });
+          reactivated++;
+          console.log(`${PREFIX} ♻️ Reactivated ${token.symbol} — fees confirmed going to protocol`);
+        } else if (!result.verified && result.feeRecipient && result.feeRecipient !== '' && token.isActive) {
+          // Fee recipient is CONFIRMED going to a different wallet — deactivate
           await prisma.token.update({
             where: { id: token.id },
             data: { isActive: false },
@@ -179,14 +190,9 @@ async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
           console.log(
             `${PREFIX} ❌ Deactivated ${token.symbol} — fee_recipient is "${result.feeRecipient}", not protocol wallet`,
           );
-        } else if (result.verified && !token.isActive) {
-          // Fee was re-pointed to protocol — reactivate
-          await prisma.token.update({
-            where: { id: token.id },
-            data: { isActive: true },
-          });
-          reactivated++;
-          console.log(`${PREFIX} ♻️ Reactivated ${token.symbol} — fees now redirected to protocol`);
+        } else if (!result.verified && !result.feeRecipient) {
+          // fee_recipient not exposed by API — can't verify, keep current state
+          console.log(`${PREFIX} ⏭ ${token.symbol} — fee_recipient not exposed by API, keeping active`);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
