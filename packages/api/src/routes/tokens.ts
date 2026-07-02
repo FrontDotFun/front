@@ -312,72 +312,73 @@ router.post('/list', async (req, res) => {
     }
 
     // ── Fee verification ──
-    // Verify the token's creator fees are redirected to the protocol wallet.
-    // We check multiple sources since pump.fun API doesn't always expose fee_recipient.
-    let feeVerified = false;
+    // Skip verification for the protocol's own $FRONT token
+    const FRONT_MINT = process.env.FRONT_TOKEN_MINT || '';
+    let feeVerified = tokenAddress === FRONT_MINT && FRONT_MINT.length > 0;
     let feeCheckError: string | null = null;
-    let isPumpToken = false;
+    let isPumpToken = feeVerified; // $FRONT is a pump.fun token
 
-    try {
-      const pumpRes = await fetch(`https://frontend-api-v3.pump.fun/coins/${tokenAddress}`);
-      if (pumpRes.ok) {
-        isPumpToken = true;
-        const pumpData = await pumpRes.json() as any;
+    if (!feeVerified) {
+      // Verify the token's creator fees are redirected to the protocol wallet.
+      try {
+        const pumpRes = await fetch(`https://frontend-api-v3.pump.fun/coins/${tokenAddress}`);
+        if (pumpRes.ok) {
+          isPumpToken = true;
+          const pumpData = await pumpRes.json() as any;
 
-        // Method 1: Check fee_recipient field (if pump.fun exposes it)
-        if (
-          pumpData.fee_recipient === PROTOCOL_WALLET ||
-          pumpData.creator_fee_wallet === PROTOCOL_WALLET
-        ) {
-          feeVerified = true;
-        }
+          // Method 1: Check fee_recipient field (if pump.fun exposes it)
+          if (
+            pumpData.fee_recipient === PROTOCOL_WALLET ||
+            pumpData.creator_fee_wallet === PROTOCOL_WALLET
+          ) {
+            feeVerified = true;
+          }
 
-        // Method 2: Check on-chain sharing config via Pump SDK
-        if (!feeVerified && feeSharingConfigPda && PumpSdk) {
-          try {
-            const connection = getConnection();
-            const mintPubkey = new PublicKey(tokenAddress);
-            const sharingPda = feeSharingConfigPda(mintPubkey);
-            const sharingInfo = await connection.getAccountInfo(sharingPda);
+          // Method 2: Check on-chain sharing config via Pump SDK
+          if (!feeVerified && feeSharingConfigPda && PumpSdk) {
+            try {
+              const connection = getConnection();
+              const mintPubkey = new PublicKey(tokenAddress);
+              const sharingPda = feeSharingConfigPda(mintPubkey);
+              const sharingInfo = await connection.getAccountInfo(sharingPda);
 
-            if (sharingInfo) {
-              const pumpSdk = new PumpSdk();
-              const config = pumpSdk.decodeSharingConfig(sharingInfo);
-              const shareholders = (config as any).shareholders || (config as any).shares || [];
-              for (const sh of shareholders) {
-                const addr = sh.address?.toBase58?.() || sh.wallet?.toBase58?.() || String(sh.address || sh.wallet || '');
-                if (addr === PROTOCOL_WALLET) {
-                  feeVerified = true;
-                  break;
+              if (sharingInfo) {
+                const pumpSdk = new PumpSdk();
+                const config = pumpSdk.decodeSharingConfig(sharingInfo);
+                const shareholders = (config as any).shareholders || (config as any).shares || [];
+                for (const sh of shareholders) {
+                  const addr = sh.address?.toBase58?.() || sh.wallet?.toBase58?.() || String(sh.address || sh.wallet || '');
+                  if (addr === PROTOCOL_WALLET) {
+                    feeVerified = true;
+                    break;
+                  }
                 }
               }
+            } catch {
+              // On-chain check failed — continue to next method
             }
-          } catch {
-            // On-chain check failed — continue to next method
           }
-        }
 
-        // Method 3: If the token creator matches the authenticated wallet,
-        // trust the creator's claim that fees are redirected.
-        // The scanner will re-verify periodically and deactivate if fees stop.
-        if (!feeVerified && pumpData.creator === wallet) {
-          feeVerified = true;
-          console.log(`[tokens] Creator ${wallet.substring(0, 8)}… listing own token — trusted`);
-        }
+          // Method 3: Check if the token creator matches the protocol wallet
+          if (!feeVerified && pumpData.creator === PROTOCOL_WALLET) {
+            feeVerified = true;
+            console.log(`[tokens] Protocol wallet is token creator — auto-verified`);
+          }
 
-        if (!feeVerified) {
-          feeCheckError =
-            'Could not verify fee redirect. Make sure your pump.fun creator rewards ' +
-            'are redirected to: ' + PROTOCOL_WALLET +
-            '\n\nIf you just set it up, wait a minute and try again.';
+          if (!feeVerified) {
+            feeCheckError =
+              'Could not verify fee redirect. Make sure your pump.fun creator rewards ' +
+              'are redirected to: ' + PROTOCOL_WALLET +
+              '\n\nIf you just set it up, wait a minute and try again.';
+          }
+        } else if (pumpRes.status === 404) {
+          feeCheckError = 'Token not found on pump.fun. Only pump.fun tokens are supported.';
+        } else {
+          feeCheckError = 'Could not verify — pump.fun API error. Try again later.';
         }
-      } else if (pumpRes.status === 404) {
-        feeCheckError = 'Token not found on pump.fun. Only pump.fun tokens are supported.';
-      } else {
-        feeCheckError = 'Could not verify — pump.fun API error. Try again later.';
+      } catch {
+        feeCheckError = 'Could not verify fee redirect — network error. Try again later.';
       }
-    } catch {
-      feeCheckError = 'Could not verify fee redirect — network error. Try again later.';
     }
 
     if (!isPumpToken && !feeVerified) {
@@ -454,7 +455,7 @@ router.post('/list', async (req, res) => {
         name: resolvedName,
         symbol: resolvedSymbol,
         imageUri: resolvedImage,
-        creatorWallet: wallet,
+        creatorWallet: PROTOCOL_WALLET,
         tier: resolvedTier,
         isActive: true,
       },
