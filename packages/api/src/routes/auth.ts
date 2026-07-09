@@ -318,7 +318,22 @@ const authCodeStore = new Map<string, { token: string; expiresAt: number }>();
  * Redirect to Google OAuth consent screen.
  * Generates a CSRF state parameter stored in a secure httpOnly cookie.
  */
-router.get('/google', (_req, res) => {
+router.get('/google', (req, res) => {
+  // The CSRF state cookie must live on the SAME host Google returns to
+  // (cookies don't cross registrable domains). If the user entered via
+  // a different host (e.g. the Vercel proxy on www.front.fun while the
+  // callback is on the Railway domain), bounce once to the callback's
+  // origin so cookie + callback share a host. Becomes a no-op when
+  // GOOGLE_CALLBACK_URL is flipped to the branded domain.
+  const cbOrigin = new URL(GOOGLE_CALLBACK_URL).origin;
+  const fwdHost = (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0]?.trim();
+  const host = fwdHost || req.headers.host || '';
+  const proto = ((req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim()) || req.protocol || 'https';
+  const reqOrigin = `${proto}://${host}`;
+  if (host && reqOrigin !== cbOrigin && req.query.hop !== '1') {
+    return res.redirect(`${cbOrigin}/api/auth/google?hop=1`);
+  }
+
   const state = crypto.randomBytes(32).toString('hex');
 
   res.cookie('oauth_state', state, {
@@ -352,13 +367,13 @@ router.get('/google/callback', async (req, res) => {
     const { code, state } = req.query;
 
     if (!code || typeof code !== 'string') {
-      return res.redirect(`${FRONTEND_URL}/login?error=no_code`);
+      return res.redirect(`${FRONTEND_URL}/auth?error=no_code`);
     }
 
     // Validate CSRF state parameter
     const storedState = req.cookies?.oauth_state;
     if (!state || !storedState || state !== storedState) {
-      return res.redirect(`${FRONTEND_URL}/login?error=invalid_state`);
+      return res.redirect(`${FRONTEND_URL}/auth?error=invalid_state`);
     }
     // Clear the state cookie
     res.clearCookie('oauth_state');
@@ -380,7 +395,7 @@ router.get('/google/callback', async (req, res) => {
 
     if (!tokenData.access_token) {
       console.error('[Google OAuth] Token exchange failed:', tokenData);
-      return res.redirect(`${FRONTEND_URL}/login?error=token_exchange_failed`);
+      return res.redirect(`${FRONTEND_URL}/auth?error=token_exchange_failed`);
     }
 
     // Fetch user info from Google
@@ -391,7 +406,7 @@ router.get('/google/callback', async (req, res) => {
     const googleUser = await userInfoRes.json() as any;
 
     if (!googleUser.email) {
-      return res.redirect(`${FRONTEND_URL}/login?error=no_email`);
+      return res.redirect(`${FRONTEND_URL}/auth?error=no_email`);
     }
 
     // Find or create user
@@ -442,7 +457,7 @@ router.get('/google/callback', async (req, res) => {
     res.redirect(`${FRONTEND_URL}/auth/callback?code=${authCode}`);
   } catch (err) {
     console.error('[Google OAuth] Error:', err);
-    res.redirect(`${FRONTEND_URL}/login?error=oauth_failed`);
+    res.redirect(`${FRONTEND_URL}/auth?error=oauth_failed`);
   }
 });
 

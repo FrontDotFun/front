@@ -9,11 +9,18 @@ export const Auth: FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState(() =>
-    new URLSearchParams(window.location.search).get('error') === 'account_limit'
-      ? 'An account already exists on this device or network. Only one account is allowed.'
-      : '',
-  );
+  const [error, setError] = useState(() => {
+    const code = new URLSearchParams(window.location.search).get('error');
+    const messages: Record<string, string> = {
+      account_limit: 'An account already exists on this device or network. Only one account is allowed.',
+      invalid_state: 'Sign-in session expired — please try again.',
+      no_code: 'Google sign-in was cancelled or failed — please try again.',
+      token_exchange_failed: 'Could not complete Google sign-in — please try again.',
+      no_email: 'Your Google account did not share an email address.',
+      oauth_failed: 'Google sign-in failed — please try again.',
+    };
+    return code ? (messages[code] ?? 'Sign-in failed — please try again.') : '';
+  });
   const [submitting, setSubmitting] = useState(false);
   const { login, register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
