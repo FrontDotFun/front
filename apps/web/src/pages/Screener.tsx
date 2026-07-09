@@ -7,7 +7,7 @@ import { blip } from '../lib/sfx';
    SCREENER — live Solana market wall. Real Birdeye trending data
    through the protocol proxy, refreshed every 30s. Keyboard-first:
    j/k or ↑/↓ to move, enter to open the trade terminal, s to
-   cycle sort. LISTED = tradeable with leverage on FRONT.
+   cycle sort. LISTED = tradeable with leverage on SCALE.
    ═══════════════════════════════════════════════════════════════ */
 
 type SortKey = 'rank' | 'price' | 'priceChange24h' | 'volume24h' | 'marketCap' | 'liquidity';
@@ -64,7 +64,7 @@ export const Screener: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Which of these are listed on FRONT (leveraged trading available)
+  // Which of these are listed on SCALE (leveraged trading available)
   useEffect(() => {
     api.getListedTokens(50)
       .then((toks) => setListed(new Set(toks.map((t) => t.address))))

@@ -5,7 +5,7 @@ export const Docs: FC = () => {
     <div className="docs-page fade-in">
       {/* Header */}
       <div className="docs-header">
-        <h1>Front Protocol Documentation</h1>
+        <h1>Scale Protocol Documentation</h1>
         <p className="docs-header-sub">
           Leveraged memecoin trading on Solana. Backed by Pump.fun creator rewards. Permissionless token listing.
         </p>
@@ -29,7 +29,7 @@ export const Docs: FC = () => {
       <section id="overview" className="docs-section">
         <h2>Overview</h2>
         <p>
-          Front Protocol enables leveraged spot trading on Pump.fun and Raydium-listed memecoins on Solana.
+          Scale Protocol enables leveraged spot trading on Pump.fun and Raydium-listed memecoins on Solana.
           Traders deposit SOL as collateral, and the protocol supplies the remaining capital from a shared lending pool
           to open a larger position. Trades are executed as real spot buys on-chain via Jupiter aggregator — not synthetic perpetuals.
         </p>
@@ -154,7 +154,7 @@ export const Docs: FC = () => {
       <section id="protocol-safety" className="docs-section">
         <h2>Protocol Safety Model</h2>
         <p>
-          Front Protocol is architecturally designed to protect its capital under all market conditions.
+          Scale Protocol is architecturally designed to protect its capital under all market conditions.
           The following mechanisms work together to ensure the lending pool is never depleted:
         </p>
 
@@ -194,7 +194,7 @@ export const Docs: FC = () => {
       <section id="token-listing" className="docs-section">
         <h2>Token Listing</h2>
         <p>
-          Token listing on Front Protocol is fully automatic and requires no account creation, no application form,
+          Token listing on Scale Protocol is fully automatic and requires no account creation, no application form,
           and no manual approval. The process is entirely on-chain and verifiable:
         </p>
 
@@ -205,7 +205,7 @@ export const Docs: FC = () => {
               <h4>Configure Creator Rewards</h4>
               <p>
                 In your Pump.fun token settings, set the fee-sharing allocation to direct 100% of creator
-                rewards to the Front Protocol wallet address.
+                rewards to the Scale Protocol wallet address.
               </p>
             </div>
           </div>
@@ -283,7 +283,7 @@ export const Docs: FC = () => {
       <section id="fee-structure" className="docs-section">
         <h2>Fee Structure</h2>
         <p>
-          Front Protocol charges a single flat fee on the total position size when a position is opened.
+          Scale Protocol charges a single flat fee on the total position size when a position is opened.
           There are no funding rates, no borrowing fees, and no hidden charges.
         </p>
         <div className="docs-table-wrap">

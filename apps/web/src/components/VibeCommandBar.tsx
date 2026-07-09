@@ -139,7 +139,7 @@ export const VibeCommandBar: FC<VibeCommandBarProps> = ({
     >
       <div className={`vibe-bar ${focused ? 'vibe-bar-focused' : ''}`}>
         {/* Prompt prefix */}
-        <span className="vibe-bar-prefix">FRONT</span>
+        <span className="vibe-bar-prefix">SCALE</span>
         <span className="vibe-bar-caret">&gt;</span>
 
         {/* Input */}

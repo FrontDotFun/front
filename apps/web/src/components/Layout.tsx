@@ -139,7 +139,7 @@ export const Layout: FC = () => {
       <nav className="top-nav">
         <NavLink to="/" className="top-nav-logo">
           <Logo size={20} />
-          <span>FRONT<i className="logo-cursor" /></span>
+          <span>SCALE<i className="logo-cursor" /></span>
         </NavLink>
 
         <div className="top-nav-tabs">

@@ -60,7 +60,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     // Protocol branding — top left
     ctx.font = 'bold 16px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#f2eee2';
-    ctx.fillText('FRONT', 28, 42);
+    ctx.fillText('SCALE', 28, 42);
     ctx.font = '12px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#76705a';
     ctx.fillText('PROTOCOL', 82, 42);
@@ -69,7 +69,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     ctx.font = '11px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#4d4936';
     ctx.textAlign = 'right';
-    ctx.fillText('front.fun', W - 28, 42);
+    ctx.fillText('scale.fun', W - 28, 42);
     ctx.textAlign = 'left';
 
     // Divider line

@@ -15,7 +15,7 @@ interface Command {
 
 /**
  * ⌘K command palette — jump anywhere, trade anything.
- * Disabled on /trade where the FRONT> prompt owns ⌘K.
+ * Disabled on /trade where the SCALE> prompt owns ⌘K.
  */
 export const CommandPalette: FC = () => {
   const navigate = useNavigate();
@@ -139,7 +139,7 @@ export const CommandPalette: FC = () => {
     <div className="cmdk-overlay" onMouseDown={close}>
       <div className="cmdk" onMouseDown={(e) => e.stopPropagation()}>
         <div className="cmdk-input-row">
-          <span className="cmdk-prompt">FRONT&gt;</span>
+          <span className="cmdk-prompt">SCALE&gt;</span>
           <input
             ref={inputRef}
             className="cmdk-input"

@@ -88,7 +88,7 @@ export const Explore: FC = () => {
         <div>
           <h2 style={{ marginBottom: 4 }}>Explore Tokens</h2>
           <p style={{ fontSize: '0.86rem', color: '#76705a' }}>
-            Tokens listed on Front Protocol — click any token to trade with leverage
+            Tokens listed on Scale Protocol — click any token to trade with leverage
           </p>
         </div>
       </div>

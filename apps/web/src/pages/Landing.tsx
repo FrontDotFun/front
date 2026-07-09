@@ -11,15 +11,15 @@ import { chartPalette, onThemeChange } from '../lib/theme';
 import * as api from '../lib/api';
 
 /* ═══════════════════════════════════════════════════════════════
-   FRONT — PHOSPHOR landing experience
+   SCALE — PHOSPHOR landing experience
    POST boot · live market wall · risk computer · spec plates
    ═══════════════════════════════════════════════════════════════ */
 
-const FRONT_CA = 'f2LZJzFYi1DScywiKUanLpMuWoDKSgqvink82sxpump';
+const SCALE_CA = 'f2LZJzFYi1DScywiKUanLpMuWoDKSgqvink82sxpump';
 
 /* ── Boot / POST sequence ───────────────────────────────────── */
 const BOOT_LINES: Array<{ text: string; status?: string }> = [
-  { text: 'FRONT TERMINAL BIOS v2.0.7 — PHOSPHOR' },
+  { text: 'SCALE TERMINAL BIOS v2.0.7 — PHOSPHOR' },
   { text: 'MEM CHECK ................ 640K DEGEN RAM', status: 'OK' },
   { text: 'SOLANA MAINNET LINK ......', status: 'OK' },
   { text: 'LENDING POOL .............', status: 'ARMED' },
@@ -322,7 +322,7 @@ export const Landing: FC = () => {
       <nav className="lp-nav">
         <div className="lp-logo">
           <Logo size={22} />
-          <span className="lp-logo-text">FRONT<i className="logo-cursor" /></span>
+          <span className="lp-logo-text">SCALE<i className="logo-cursor" /></span>
         </div>
         <div className="lp-nav-links">
           <a href="#sim">SIMULATOR</a>
@@ -497,7 +497,7 @@ export const Landing: FC = () => {
       <section className="lp-final">
         <Reveal>
           <h2 className="lp-final-h">
-            <Scramble text="READY TO FRONT?" hover speed={30} />
+            <Scramble text="READY TO SCALE?" hover speed={30} />
             <span className="lp-caret blink">▮</span>
           </h2>
           <Link to="/trade" className="lp-cta-main lp-cta-big">
@@ -509,16 +509,16 @@ export const Landing: FC = () => {
       {/* Footer */}
       <footer className="lp-footer">
         <div className="lp-footer-left">
-          <span className="lp-logo-text">FRONT_</span>
+          <span className="lp-logo-text">SCALE_</span>
           <span className="lp-footer-dim">BUILT FOR DEGENS. THE POOL NEVER LOSES.</span>
           <a
             className="lp-footer-ca mono"
-            href={`https://pump.fun/coin/${FRONT_CA}`}
+            href={`https://pump.fun/coin/${SCALE_CA}`}
             target="_blank"
             rel="noopener noreferrer"
-            title={FRONT_CA}
+            title={SCALE_CA}
           >
-            CA: {FRONT_CA.slice(0, 6)}…{FRONT_CA.slice(-6)}
+            CA: {SCALE_CA.slice(0, 6)}…{SCALE_CA.slice(-6)}
           </a>
         </div>
         <div className="lp-footer-links">

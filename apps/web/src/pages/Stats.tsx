@@ -27,7 +27,7 @@ export const Stats: FC = () => {
       <div>
         <h2 style={{ marginBottom: 4 }}>Protocol Stats</h2>
         <p style={{ fontSize: '0.86rem' }}>
-          Real-time overview of the Front Protocol
+          Real-time overview of the Scale Protocol
         </p>
       </div>
 

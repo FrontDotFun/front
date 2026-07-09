@@ -109,7 +109,7 @@ export const Creator: FC = () => {
             No listed tokens found
           </div>
           <div style={{ fontSize: '0.82rem', color: 'var(--text-2)', maxWidth: 380, margin: '0 auto', lineHeight: 1.6 }}>
-            This wallet has no tokens listed on Front Protocol.
+            This wallet has no tokens listed on Scale Protocol.
             To list a token, redirect its Pump.fun creator rewards to the protocol wallet.
           </div>
         </div>

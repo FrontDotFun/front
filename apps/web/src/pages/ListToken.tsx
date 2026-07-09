@@ -85,7 +85,7 @@ export const ListToken: FC = () => {
       <div>
         <h2 style={{ marginBottom: 4 }}>List Your Token</h2>
         <p className="text-muted" style={{ fontSize: '0.93rem', margin: 0 }}>
-          Redirect your pump.fun creator fees to the Front Protocol wallet, then paste your token address below. Tier, name, and logo are auto-detected.
+          Redirect your pump.fun creator fees to the Scale Protocol wallet, then paste your token address below. Tier, name, and logo are auto-detected.
         </p>
       </div>
 
@@ -160,7 +160,7 @@ export const ListToken: FC = () => {
       {/* Steps */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         {[
-          { title: 'Redirect Creator Rewards', desc: 'On Pump.fun, redirect your token\'s creator rewards to the Front Protocol wallet above. This funds the capital pool for leveraged trading.' },
+          { title: 'Redirect Creator Rewards', desc: 'On Pump.fun, redirect your token\'s creator rewards to the Scale Protocol wallet above. This funds the capital pool for leveraged trading.' },
           { title: 'Paste Token Address', desc: 'Paste your token contract address above. Front auto-detects your token\'s name, symbol, logo, and risk tier based on market cap.' },
           { title: 'On-Chain Verification', desc: 'Front verifies on-chain that your creator fee wallet is redirected to the protocol. Tokens without valid fee redirects are rejected.' },
           { title: 'Live on Front', desc: 'Your token appears on the Explore page. Traders can take leveraged positions, driving volume and attention to your token.' },

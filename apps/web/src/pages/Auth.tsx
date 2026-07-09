@@ -81,7 +81,7 @@ export const Auth: FC = () => {
               <path d="M2 17l10 5 10-5" />
               <path d="M2 12l10 5 10-5" />
             </svg>
-            <span style={{ fontSize: 20, fontWeight: 700, color: '#f2eee2', letterSpacing: '0.04em' }}>FRONT</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: '#f2eee2', letterSpacing: '0.04em' }}>SCALE</span>
           </div>
         </Link>
 
