@@ -41,9 +41,10 @@ if ! [[ "$KEY" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
   exit 1
 fi
 
-# 3. Derive the public address (key goes via stdin, never argv/env)
-ADDR=$(printf '%s' "$KEY" | npx tsx --eval '
-  import { privateKeyToAccount } from "viem/accounts";
+# 3. Derive the public address (key goes via stdin, never argv/env).
+#    Run from packages/evm so `viem` resolves in the pnpm workspace.
+ADDR=$(printf '%s' "$KEY" | (cd packages/evm && node -e '
+  const { privateKeyToAccount } = require("viem/accounts");
   let data = "";
   process.stdin.on("data", (c) => (data += c));
   process.stdin.on("end", () => {
@@ -54,7 +55,7 @@ ADDR=$(printf '%s' "$KEY" | npx tsx --eval '
       process.exit(1);
     }
   });
-')
+'))
 if [[ "$ADDR" != 0x* ]]; then
   echo "❌ Key failed cryptographic validation — check it and retry."
   exit 1
