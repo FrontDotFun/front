@@ -458,3 +458,12 @@ html::after {
 }
 
 .rekt-shake { animation: rektShake 0.4s ease-out 1; }
+
+/* ── Keyboard focus — the terminal is keyboard-first, show it ── */
+:focus-visible {
+  outline: 1px solid var(--primary);
+  outline-offset: 2px;
+  box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.35);
+}
+
+::-moz-focus-inner { border: 0; }

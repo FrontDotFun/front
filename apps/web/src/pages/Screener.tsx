@@ -1,4 +1,4 @@
-import { type FC, useEffect, useMemo, useRef, useState } from 'react';
+import { type FC, Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
 import { blip } from '../lib/sfx';
@@ -149,18 +149,21 @@ export const Screener: FC = () => {
           <table className="table scr-table">
             <thead>
               <tr>
-                {SORTS.map((s) => (
-                  <th
-                    key={s.key}
-                    onClick={() => setSort(s.key)}
-                    className={sortKey === s.key ? 'scr-th-active' : ''}
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {s.key === 'rank' ? '#' : s.label}
-                    {sortKey === s.key && <span className="scr-sort-dir">{sortDesc ? ' ▼' : ' ▲'}</span>}
-                  </th>
+                {/* Token first — on mobile the leftmost columns are all
+                    you see; a price with no symbol is useless */}
+                {SORTS.map((s, i) => (
+                  <Fragment key={s.key}>
+                    <th
+                      onClick={() => setSort(s.key)}
+                      className={sortKey === s.key ? 'scr-th-active' : ''}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {s.key === 'rank' ? '#' : s.label}
+                      {sortKey === s.key && <span className="scr-sort-dir">{sortDesc ? ' ▼' : ' ▲'}</span>}
+                    </th>
+                    {i === 0 && <th>TOKEN</th>}
+                  </Fragment>
                 ))}
-                <th>TOKEN</th>
                 <th></th>
               </tr>
             </thead>
@@ -180,6 +183,10 @@ export const Screener: FC = () => {
                       onClick={() => navigate(`/trade?token=${t.address}`)}
                     >
                       <td className="text-dim mono">{String(i + 1).padStart(2, '0')}</td>
+                      <td>
+                        <span className="cell-token">{t.symbol}</span>
+                        <span className="scr-name"> {t.name?.slice(0, 24)}</span>
+                      </td>
                       <td className="mono">{fmtPrice(t.price)}</td>
                       <td className="mono" style={{ color: t.priceChange24h >= 0 ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>
                         {t.priceChange24h >= 0 ? '+' : ''}{t.priceChange24h.toFixed(1)}%
@@ -187,10 +194,6 @@ export const Screener: FC = () => {
                       <td className="mono">{fmtUsd(t.volume24h)}</td>
                       <td className="mono">{fmtUsd(t.marketCap)}</td>
                       <td className="mono">{fmtUsd(t.liquidity)}</td>
-                      <td>
-                        <span className="cell-token">{t.symbol}</span>
-                        <span className="scr-name"> {t.name?.slice(0, 24)}</span>
-                      </td>
                       <td>
                         {listed.has(t.address)
                           ? <span className="badge badge-rising">LISTED · LEV</span>
