@@ -2,6 +2,9 @@ import { type FC, type ReactNode, useState, useEffect, useRef, useCallback } fro
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Scramble } from '../components/fx/Scramble';
+import { ReplaySim } from '../components/ReplaySim';
+import { ThemeSwitcher } from '../components/ThemeSwitcher';
+import { chartPalette, onThemeChange } from '../lib/theme';
 import * as api from '../lib/api';
 
 /* ═══════════════════════════════════════════════════════════════
@@ -66,9 +69,37 @@ const BootIntro: FC<{ onDone: () => void }> = ({ onDone }) => {
   );
 };
 
-/* ── Market wall — self-drawing phosphor candle chart ───────── */
+/* ── Market wall — REAL SOL/USD candles, drawn phosphor-style ─ */
+const WSOL = 'So11111111111111111111111111111111111111112';
+
+interface WallCandle { o: number; c: number; h: number; l: number }
+
 const MarketWall: FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const candlesRef = useRef<WallCandle[]>([]);
+  const [feedInfo, setFeedInfo] = useState<{ price: number; up: boolean } | null>(null);
+  const [themeTick, setThemeTick] = useState(0);
+
+  useEffect(() => onThemeChange(() => setThemeTick((v) => v + 1)), []);
+
+  // Real 15-minute SOL/USD candles, last 24h, refreshed every 60s
+  useEffect(() => {
+    let dead = false;
+    const load = async () => {
+      try {
+        const now = Math.floor(Date.now() / 1000);
+        const data = await api.getMarketPriceHistory(WSOL, '15m', now - 24 * 3600, now);
+        if (dead || data.length === 0) return;
+        candlesRef.current = data.map((d) => ({ o: d.open, c: d.close, h: d.high, l: d.low }));
+        const last = data[data.length - 1];
+        const first = data[0];
+        setFeedInfo({ price: last.close, up: last.close >= first.open });
+      } catch { /* keep whatever we have; NO FEED tag stays honest */ }
+    };
+    load();
+    const t = setInterval(load, 60_000);
+    return () => { dead = true; clearInterval(t); };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -91,22 +122,6 @@ const MarketWall: FC = () => {
     resize();
     window.addEventListener('resize', resize);
 
-    // Synthetic random-walk candles
-    interface Candle { o: number; c: number; hi: number; lo: number }
-    const candles: Candle[] = [];
-    let price = 0.5;
-    const step = () => {
-      const drift = (Math.random() - 0.47) * 0.06;
-      const o = price;
-      const c = Math.min(0.95, Math.max(0.05, price + drift));
-      const hi = Math.max(o, c) + Math.random() * 0.02;
-      const lo = Math.min(o, c) - Math.random() * 0.02;
-      price = c;
-      candles.push({ o, c, hi, lo });
-      if (candles.length > 90) candles.shift();
-    };
-    for (let i = 0; i < 90; i++) step();
-
     const mouse = { x: -9999, y: -9999 };
     const onMove = (e: MouseEvent) => {
       const r = canvas.getBoundingClientRect();
@@ -118,14 +133,13 @@ const MarketWall: FC = () => {
     window.addEventListener('mouseout', onLeave);
 
     let raf = 0;
-    let lastStep = 0;
 
-    const draw = (now: number) => {
-      if (now - lastStep > 420) { step(); lastStep = now; }
+    const draw = () => {
+      const P = chartPalette();
       ctx.clearRect(0, 0, w, h);
 
       // Phosphor grid
-      ctx.strokeStyle = 'rgba(255, 179, 0, 0.045)';
+      ctx.strokeStyle = `rgba(${P.primaryRgb}, 0.045)`;
       ctx.lineWidth = 1;
       const gx = 64;
       for (let x = 0.5; x < w; x += gx) {
@@ -135,41 +149,42 @@ const MarketWall: FC = () => {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
       }
 
-      // Candles
-      const cw = w / 90;
-      const bw = Math.max(2, cw * 0.5);
-      candles.forEach((cd, i) => {
-        const x = i * cw + cw / 2;
-        const up = cd.c >= cd.o;
-        const col = up ? 'rgba(61, 255, 158, 0.20)' : 'rgba(255, 77, 77, 0.18)';
-        const yO = h - cd.o * h;
-        const yC = h - cd.c * h;
-        const yHi = h - cd.hi * h;
-        const yLo = h - cd.lo * h;
-        ctx.strokeStyle = col;
-        ctx.beginPath(); ctx.moveTo(x, yHi); ctx.lineTo(x, yLo); ctx.stroke();
-        ctx.fillStyle = col;
-        ctx.fillRect(x - bw / 2, Math.min(yO, yC), bw, Math.max(1.5, Math.abs(yC - yO)));
-      });
+      const candles = candlesRef.current;
+      if (candles.length > 1) {
+        // Normalize real prices into the mid-band of the hero
+        let min = Infinity; let max = -Infinity;
+        for (const c of candles) { min = Math.min(min, c.l); max = Math.max(max, c.h); }
+        const span = max - min || 1;
+        const yOf = (p: number) => h * 0.82 - ((p - min) / span) * h * 0.6;
 
-      // Last-price line
-      const lastY = h - candles[candles.length - 1].c * h;
-      ctx.strokeStyle = 'rgba(255, 179, 0, 0.28)';
-      ctx.setLineDash([4, 5]);
-      ctx.beginPath(); ctx.moveTo(0, lastY); ctx.lineTo(w, lastY); ctx.stroke();
-      ctx.setLineDash([]);
+        const cw = w / candles.length;
+        const bw = Math.max(2, cw * 0.5);
+        candles.forEach((cd, i) => {
+          const x = i * cw + cw / 2;
+          const up = cd.c >= cd.o;
+          const col = up ? 'rgba(61, 255, 158, 0.20)' : 'rgba(255, 77, 77, 0.18)';
+          ctx.strokeStyle = col;
+          ctx.beginPath(); ctx.moveTo(x, yOf(cd.h)); ctx.lineTo(x, yOf(cd.l)); ctx.stroke();
+          ctx.fillStyle = col;
+          const yO = yOf(cd.o); const yC = yOf(cd.c);
+          ctx.fillRect(x - bw / 2, Math.min(yO, yC), bw, Math.max(1.5, Math.abs(yC - yO)));
+        });
+
+        // Last-price line
+        const lastY = yOf(candles[candles.length - 1].c);
+        ctx.strokeStyle = `rgba(${P.primaryRgb}, 0.28)`;
+        ctx.setLineDash([4, 5]);
+        ctx.beginPath(); ctx.moveTo(0, lastY); ctx.lineTo(w, lastY); ctx.stroke();
+        ctx.setLineDash([]);
+      }
 
       // Cursor crosshair
       if (mouse.x > 0 && mouse.y > 0) {
-        ctx.strokeStyle = 'rgba(255, 179, 0, 0.18)';
+        ctx.strokeStyle = `rgba(${P.primaryRgb}, 0.18)`;
         ctx.setLineDash([3, 5]);
         ctx.beginPath(); ctx.moveTo(mouse.x + 0.5, 0); ctx.lineTo(mouse.x + 0.5, h); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(0, mouse.y + 0.5); ctx.lineTo(w, mouse.y + 0.5); ctx.stroke();
         ctx.setLineDash([]);
-        const px = (1 - mouse.y / h);
-        ctx.fillStyle = 'rgba(255, 179, 0, 0.55)';
-        ctx.font = '10px "JetBrains Mono", monospace';
-        ctx.fillText(`${(px * 100).toFixed(1)}%`, mouse.x + 8, mouse.y - 8);
       }
 
       if (!reduced) raf = requestAnimationFrame(draw);
@@ -182,9 +197,26 @@ const MarketWall: FC = () => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseout', onLeave);
     };
-  }, []);
+  }, [themeTick]);
 
-  return <canvas ref={canvasRef} className="lp-canvas" />;
+  return (
+    <>
+      <canvas ref={canvasRef} className="lp-canvas" />
+      <div className="lp-feed-tag mono">
+        {feedInfo ? (
+          <>
+            <span className="lp-feed-dot" /> LIVE FEED · SOL/USD ·{' '}
+            <b style={{ color: feedInfo.up ? 'var(--green)' : 'var(--red)' }}>
+              ${feedInfo.price.toFixed(2)}
+            </b>{' '}
+            · 24H×15M
+          </>
+        ) : (
+          <>NO FEED</>
+        )}
+      </div>
+    </>
+  );
 };
 
 /* ── Typewriter line ────────────────────────────────────────── */
@@ -219,7 +251,10 @@ const LiveStats: FC = () => {
 
   const items = [
     { k: 'MAX LEVERAGE', v: '10.0X' },
-    { k: 'FLAT FEE', v: '0.5%' },
+    {
+      k: 'LENDING POOL',
+      v: stats ? `${lam(stats.poolSizeLamports).toFixed(2)}◎` : '—',
+    },
     {
       k: 'SOL BURNED',
       v: stats ? `${lam(stats.totalBurnedLamports).toFixed(2)}◎` : '—',
@@ -242,111 +277,6 @@ const LiveStats: FC = () => {
           <span>{s.k}</span>
         </div>
       ))}
-    </div>
-  );
-};
-
-/* ── Risk computer (simulator — exact protocol math) ────────── */
-const RiskComputer: FC = () => {
-  const [collateral, setCollateral] = useState(1);
-  const [leverage, setLeverage] = useState(5);
-  const [move, setMove] = useState(25);
-
-  const position = collateral * leverage;
-  const borrowed = collateral * (leverage - 1);
-  const fee = position * 0.005;
-  const liqPct = -(100 / leverage) * 0.85;
-  const grossPnl = position * (move / 100);
-  const liquidated = move <= liqPct;
-  const userPnl = liquidated ? -collateral : grossPnl * 0.7;
-
-  return (
-    <div className="pg">
-      <div className="pg-head">
-        <span className="pg-title">RISK COMPUTER — MODEL RC/83</span>
-        <span className="pg-sub">drag everything · this is the exact protocol math</span>
-      </div>
-
-      <div className="pg-grid">
-        <div className="pg-controls">
-          <div className="pg-field">
-            <div className="pg-row">
-              <span>COLLATERAL</span>
-              <span className="pg-val mono">{collateral.toFixed(1)} SOL</span>
-            </div>
-            <input type="range" min="0.1" max="10" step="0.1" value={collateral}
-              onChange={(e) => setCollateral(parseFloat(e.target.value))} className="pg-slider" />
-          </div>
-
-          <div className="pg-field">
-            <div className="pg-row">
-              <span>LEVERAGE</span>
-              <span className="pg-val pg-lev mono">{leverage}X</span>
-            </div>
-            <input type="range" min="2" max="10" step="1" value={leverage}
-              onChange={(e) => setLeverage(parseInt(e.target.value))} className="pg-slider" />
-          </div>
-
-          <div className="pg-field">
-            <div className="pg-row">
-              <span>TOKEN MOVES</span>
-              <span className="pg-val mono" style={{ color: move >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                {move >= 0 ? '+' : ''}{move}%
-              </span>
-            </div>
-            <input type="range" min="-60" max="120" step="1" value={move}
-              onChange={(e) => setMove(parseInt(e.target.value))} className="pg-slider pg-slider-move" />
-          </div>
-        </div>
-
-        <div className="pg-out">
-          <div className="pg-bar">
-            <motion.div
-              className="pg-bar-you"
-              animate={{ width: `${(collateral / position) * 100}%` }}
-              transition={{ type: 'spring', stiffness: 180, damping: 24 }}
-            >YOU</motion.div>
-            <motion.div
-              className="pg-bar-pool"
-              animate={{ width: `${(borrowed / position) * 100}%` }}
-              transition={{ type: 'spring', stiffness: 180, damping: 24 }}
-            >POOL</motion.div>
-          </div>
-
-          <div className="pg-stats">
-            <div className="pg-stat">
-              <span>POSITION SIZE</span>
-              <b className="mono">{position.toFixed(2)} SOL</b>
-            </div>
-            <div className="pg-stat">
-              <span>ENTRY FEE 0.5%</span>
-              <b className="mono">{fee.toFixed(3)} SOL</b>
-            </div>
-            <div className="pg-stat">
-              <span>LIQUIDATION AT</span>
-              <b className="mono" style={{ color: 'var(--red)' }}>{liqPct.toFixed(1)}%</b>
-            </div>
-          </div>
-
-          <div className={`pg-result ${liquidated ? 'pg-rekt' : userPnl >= 0 ? 'pg-win' : 'pg-loss'}`}>
-            {liquidated ? (
-              <>
-                <span className="pg-result-label">■ LIQUIDATED ■</span>
-                <span className="pg-result-num mono">-{collateral.toFixed(2)} SOL</span>
-                <span className="pg-result-sub">position auto-closed · pool stays whole</span>
-              </>
-            ) : (
-              <>
-                <span className="pg-result-label">{userPnl >= 0 ? 'YOUR PROFIT (70%)' : 'YOUR PNL'}</span>
-                <span className="pg-result-num mono">{userPnl >= 0 ? '+' : ''}{userPnl.toFixed(2)} SOL</span>
-                <span className="pg-result-sub">
-                  {userPnl >= 0 ? '30% auto-buys $FRONT · locked 7 days' : 'still above liquidation — hold or exit'}
-                </span>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
     </div>
   );
 };
@@ -390,7 +320,10 @@ export const Landing: FC = () => {
           <a href="#tiers">TIERS</a>
           <Link to="/docs">MANUAL</Link>
         </div>
-        <Link to="/trade" className="lp-cta-sm">ENTER TERMINAL</Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <ThemeSwitcher />
+          <Link to="/trade" className="lp-cta-sm">ENTER TERMINAL</Link>
+        </div>
       </nav>
 
       {/* Hero */}
@@ -454,11 +387,14 @@ export const Landing: FC = () => {
       {/* Simulator */}
       <section className="lp-section" id="sim">
         <Reveal>
-          <div className="sec-label">SEC.01 — SIMULATION</div>
-          <h2 className="lp-h2">FEEL THE <span className="lp-amber">LEVERAGE</span></h2>
-          <p className="lp-section-sub">The exact math the protocol runs on every position. No sugar-coating.</p>
+          <div className="sec-label">SEC.01 — REPLAY SIMULATION</div>
+          <h2 className="lp-h2">REPLAY THE <span className="lp-amber">LEVERAGE</span></h2>
+          <p className="lp-section-sub">
+            Real market history, exact protocol math. Drag your entry anywhere on the last 7 days
+            and see whether you'd have printed — or been liquidated.
+          </p>
         </Reveal>
-        <Reveal delay={0.1}><RiskComputer /></Reveal>
+        <Reveal delay={0.1}><ReplaySim /></Reveal>
       </section>
 
       {/* Procedure */}

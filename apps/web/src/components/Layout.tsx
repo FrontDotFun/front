@@ -2,6 +2,7 @@ import { type FC, useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { WalletButton } from './WalletButton';
 import { CommandPalette } from './CommandPalette';
+import { ThemeSwitcher } from './ThemeSwitcher';
 import { fetchTokenOverview } from '../lib/birdeye';
 import { formatPrice } from '../lib/format';
 import * as api from '../lib/api';
@@ -153,6 +154,7 @@ export const Layout: FC = () => {
         </div>
 
         <div className="top-nav-right">
+          <ThemeSwitcher />
           <UtcClock />
           <WalletButton />
         </div>

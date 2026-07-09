@@ -37,7 +37,7 @@ export const TokenMetrics: FC<TokenMetricsProps> = ({ token, overview }) => {
 
   const tierConfig = {
     bonded: { label: 'BONDED', color: '#3dff9e', bg: 'rgba(52, 211, 153, 0.08)' },
-    rising: { label: 'RISING', color: '#ffc933', bg: 'rgba(251, 191, 36, 0.08)' },
+    rising: { label: 'RISING', color: 'var(--primary-hover)', bg: 'rgba(251, 191, 36, 0.08)' },
     degen: { label: 'DEGEN', color: '#ff4d4d', bg: 'rgba(239, 68, 68, 0.08)' },
   }[token.tier] ?? { label: token.tier.toUpperCase(), color: '#a8a184', bg: 'rgba(128,128,128,0.08)' };
 
@@ -137,7 +137,7 @@ export const TokenMetrics: FC<TokenMetricsProps> = ({ token, overview }) => {
           <div className="token-metrics-item">
             <span className="token-metrics-label">TOP 10</span>
             <span className="token-metrics-value" style={{
-              color: top10Pct > 60 ? '#ff4d4d' : top10Pct > 40 ? '#ffc933' : '#3dff9e',
+              color: top10Pct > 60 ? '#ff4d4d' : top10Pct > 40 ? 'var(--primary-hover)' : '#3dff9e',
             }}>
               {top10Pct.toFixed(1)}%
             </span>

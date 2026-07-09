@@ -16,7 +16,7 @@ export default defineConfig({
     port: Number(process.env.PORT) || 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:4001',
+        target: process.env.DEV_API_PROXY || 'https://www.front.fun',
         changeOrigin: true,
       },
     },

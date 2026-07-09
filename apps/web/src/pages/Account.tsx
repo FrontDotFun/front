@@ -218,7 +218,7 @@ export const Account: FC = () => {
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={statLabel}>SOL Balance</div>
-            <div style={{ ...statValue, color: '#ffb300' }}>
+            <div style={{ ...statValue, color: 'var(--primary)' }}>
               {balanceLoading ? (
                 <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 24, borderRadius: 0 }} />
               ) : (
@@ -237,7 +237,7 @@ export const Account: FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <code style={{
               flex: 1, padding: '10px 12px', background: '#080808', border: '1px solid #262418',
-              borderRadius: 0, fontSize: 12, color: '#ffb300', fontFamily: "'JetBrains Mono', monospace",
+              borderRadius: 0, fontSize: 12, color: 'var(--primary)', fontFamily: "'JetBrains Mono', monospace",
               wordBreak: 'break-all',
             }}>
               {balance?.address || user?.walletAddress || '...'}
@@ -292,7 +292,7 @@ export const Account: FC = () => {
             }}>
               {withdrawResult.message}
               {withdrawResult.txSig && (
-                <> · <a href={solscanTxUrl(withdrawResult.txSig)} target="_blank" rel="noreferrer" style={{ color: '#ffb300' }}>View on Solscan →</a></>
+                <> · <a href={solscanTxUrl(withdrawResult.txSig)} target="_blank" rel="noreferrer" style={{ color: 'var(--primary)' }}>View on Solscan →</a></>
               )}
             </div>
           )}
@@ -395,7 +395,7 @@ export const Account: FC = () => {
                         </div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#ffb300', fontFamily: "'JetBrains Mono', monospace" }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--primary)', fontFamily: "'JetBrains Mono', monospace" }}>
                           {formatCountdown(lock.timeRemainingMs)}
                         </div>
                         <div style={{ fontSize: 10, color: '#6b664f' }}>until unlock</div>

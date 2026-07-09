@@ -76,7 +76,7 @@ export const Auth: FC = () => {
       }}>
         <Link to="/" style={{ textDecoration: 'none', position: 'absolute', top: 40, left: 80 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ffb300" strokeWidth="2">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2">
               <path d="M12 2L2 7l10 5 10-5-10-5z" />
               <path d="M2 17l10 5 10-5" />
               <path d="M2 12l10 5 10-5" />
@@ -99,7 +99,7 @@ export const Auth: FC = () => {
           }}>
             Leverage trade<br />
             any memecoin<br />
-            <span style={{ color: '#ffb300' }}>on Solana.</span>
+            <span style={{ color: 'var(--primary)' }}>on Solana.</span>
           </h1>
           <p style={{
             fontSize: 15,
@@ -120,7 +120,7 @@ export const Auth: FC = () => {
               { label: 'Creator Revenue', value: '30%' },
             ].map((s) => (
               <div key={s.label}>
-                <div style={{ fontSize: 22, fontWeight: 700, color: '#ffb300', fontFamily: "'JetBrains Mono', monospace" }}>
+                <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', fontFamily: "'JetBrains Mono', monospace" }}>
                   {s.value}
                 </div>
                 <div style={{ fontSize: 11, color: '#6b664f', marginTop: 4 }}>{s.label}</div>
@@ -162,7 +162,7 @@ export const Auth: FC = () => {
                 color: mode === 'login' ? '#f2eee2' : '#6b664f',
                 background: 'none',
                 border: 'none',
-                borderBottom: mode === 'login' ? '2px solid #ffb300' : '2px solid transparent',
+                borderBottom: mode === 'login' ? '2px solid var(--primary)' : '2px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
@@ -179,7 +179,7 @@ export const Auth: FC = () => {
                 color: mode === 'register' ? '#f2eee2' : '#6b664f',
                 background: 'none',
                 border: 'none',
-                borderBottom: mode === 'register' ? '2px solid #ffb300' : '2px solid transparent',
+                borderBottom: mode === 'register' ? '2px solid var(--primary)' : '2px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
@@ -278,7 +278,7 @@ export const Auth: FC = () => {
                   transition: 'border-color 0.2s',
                   boxSizing: 'border-box',
                 }}
-                onFocus={(e) => e.currentTarget.style.borderColor = '#ffb30040'}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb),0.25)'}
                 onBlur={(e) => e.currentTarget.style.borderColor = '#262418'}
               />
             </div>
@@ -305,7 +305,7 @@ export const Auth: FC = () => {
                   transition: 'border-color 0.2s',
                   boxSizing: 'border-box',
                 }}
-                onFocus={(e) => e.currentTarget.style.borderColor = '#ffb30040'}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb),0.25)'}
                 onBlur={(e) => e.currentTarget.style.borderColor = '#262418'}
               />
             </div>
@@ -333,7 +333,7 @@ export const Auth: FC = () => {
                     transition: 'border-color 0.2s',
                     boxSizing: 'border-box',
                   }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = '#ffb30040'}
+                  onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb),0.25)'}
                   onBlur={(e) => e.currentTarget.style.borderColor = '#262418'}
                 />
               </div>
@@ -345,7 +345,7 @@ export const Auth: FC = () => {
               style={{
                 width: '100%',
                 padding: '13px 16px',
-                background: '#ffb300',
+                background: 'var(--primary)',
                 color: '#060605',
                 border: 'none',
                 borderRadius: 0,

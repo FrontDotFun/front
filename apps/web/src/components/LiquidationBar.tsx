@@ -44,7 +44,7 @@ export const LiquidationBar: FC<LiquidationBarProps> = ({
     const pct = proximity * 100;
 
     let barColor = '#ff4d4d'; // red
-    if (proximity < 0.5) barColor = '#ffc933'; // yellow when far from liq
+    if (proximity < 0.5) barColor = 'var(--primary-hover)'; // yellow when far from liq
     if (proximity > 0.8) barColor = '#cc3d3d'; // deep red when close
 
     return {

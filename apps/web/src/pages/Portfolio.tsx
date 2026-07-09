@@ -66,7 +66,7 @@ export const Portfolio: FC = () => {
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={statLabel}>SOL Balance</div>
-            <div style={{ ...statValue, color: '#ffb300' }}>
+            <div style={{ ...statValue, color: 'var(--primary)' }}>
               {portfolio?.wallet.balanceSol || '0.0000'} SOL
             </div>
           </div>
@@ -102,7 +102,7 @@ export const Portfolio: FC = () => {
           <div style={{ padding: '24px 0', textAlign: 'center', color: '#4d4936', fontSize: 13 }}>
             No open positions.{' '}
             <span
-              style={{ color: '#ffb300', cursor: 'pointer' }}
+              style={{ color: 'var(--primary)', cursor: 'pointer' }}
               onClick={() => navigate('/explore')}
             >
               Start trading →
@@ -123,9 +123,9 @@ export const Portfolio: FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{
                     width: 32, height: 32, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #ffb30020, #ffb30005)',
+                    background: 'rgba(var(--primary-rgb),0.10)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: '#ffb300',
+                    fontSize: 12, fontWeight: 700, color: 'var(--primary)',
                   }}>
                     {p.token.symbol?.charAt(0) || '?'}
                   </div>

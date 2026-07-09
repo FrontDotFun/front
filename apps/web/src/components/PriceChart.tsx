@@ -14,6 +14,7 @@ import {
   LineStyle,
 } from 'lightweight-charts';
 import { fetchOHLCV, BirdeyePriceStream, type OHLCVBar } from '../lib/birdeye';
+import { getVar, onThemeChange } from '../lib/theme';
 
 /** Map our interval keys to Birdeye WS chartType */
 const WS_CHART_TYPE: Record<string, string> = {
@@ -96,8 +97,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#ffb30040', width: 1, style: 2, labelBackgroundColor: '#ffb300' },
-        horzLine: { color: '#ffb30040', width: 1, style: 2, labelBackgroundColor: '#ffb300' },
+        vertLine: { color: `rgba(${getVar('--primary-rgb')}, 0.25)`, width: 1, style: 2, labelBackgroundColor: getVar('--primary') },
+        horzLine: { color: `rgba(${getVar('--primary-rgb')}, 0.25)`, width: 1, style: 2, labelBackgroundColor: getVar('--primary') },
       },
       rightPriceScale: {
         borderColor: '#12110c',
@@ -145,6 +146,16 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
 
+    // Re-tint crosshair when the phosphor theme changes
+    const offTheme = onThemeChange(() => {
+      chart.applyOptions({
+        crosshair: {
+          vertLine: { color: `rgba(${getVar('--primary-rgb')}, 0.25)`, labelBackgroundColor: getVar('--primary') },
+          horzLine: { color: `rgba(${getVar('--primary-rgb')}, 0.25)`, labelBackgroundColor: getVar('--primary') },
+        },
+      });
+    });
+
     // Resize handler
     const resizeObserver = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -174,6 +185,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
+      offTheme();
       document.removeEventListener('visibilitychange', handleVisibility);
       resizeObserver.disconnect();
       chart.remove();

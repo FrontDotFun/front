@@ -219,7 +219,7 @@ export const Trade: FC = () => {
     const ms = pos.timeRemainingMs ?? 0;
     if (ms <= 0) return { text: 'Expired', color: '#ff4d4d' };
     const hours = ms / 3600000;
-    const color = hours > 12 ? '#3dff9e' : hours > 4 ? '#ffc933' : '#ff4d4d';
+    const color = hours > 12 ? '#3dff9e' : hours > 4 ? 'var(--primary-hover)' : '#ff4d4d';
     return { text: formatCountdown(ms), color };
   };
 
@@ -312,7 +312,7 @@ export const Trade: FC = () => {
                             <td className="mono">{formatSol(pos.userCapital)}</td>
                             <td className="mono">{pos.leverage}x</td>
                             <td className="mono">{pos.entryPrice ? `$${formatPrice(parseFloat(pos.entryPrice))}` : '--'}</td>
-                            <td className="mono" style={{ color: '#ffb300' }}>
+                            <td className="mono" style={{ color: 'var(--primary)' }}>
                               {tokenOverview && pos.token?.address === selectedToken?.address
                                 ? `$${formatPrice(markPrice)}`
                                 : '--'}
@@ -469,7 +469,7 @@ export const Trade: FC = () => {
                       Trading is not available for unlisted tokens.
                     </div>
                     <Link to="/list" style={{
-                      display: 'inline-block', marginTop: 8, fontSize: 11, color: '#ffb300',
+                      display: 'inline-block', marginTop: 8, fontSize: 11, color: 'var(--primary)',
                       textDecoration: 'none',
                     }}>
                       Token creators can list at /list →
@@ -482,7 +482,7 @@ export const Trade: FC = () => {
                     <label className="exec-label">Collateral</label>
                     {walletBalance && (
                       <span style={{ fontSize: 11, color: '#a8a184', fontFamily: 'var(--font-mono)' }}>
-                        Balance: <span style={{ color: '#ffb300' }}>{parseFloat(walletBalance).toFixed(4)}</span> SOL
+                        Balance: <span style={{ color: 'var(--primary)' }}>{parseFloat(walletBalance).toFixed(4)}</span> SOL
                       </span>
                     )}
                   </div>
@@ -520,7 +520,7 @@ export const Trade: FC = () => {
                     <span style={{
                       fontSize: 16,
                       fontWeight: 700,
-                      color: '#ffb300',
+                      color: 'var(--primary)',
                       fontFamily: 'var(--font-mono)',
                     }}>
                       {leverage}x
@@ -641,7 +641,7 @@ export const Trade: FC = () => {
                     onClick={() => navigate('/auth')}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    style={{ background: 'linear-gradient(135deg, #ffb300, #e5a800)' }}
+                    style={{ background: 'var(--primary)' }}
                   >
                     Sign in to Trade
                   </motion.button>
@@ -705,7 +705,7 @@ export const Trade: FC = () => {
                     const entryNum = parseFloat(pos.entryPrice ?? '0');
                     const timeMs = pos.timeRemainingMs ?? 0;
                     const timeStr = timeMs <= 0 ? 'Expired' : formatCountdown(timeMs);
-                    const timeColor = timeMs <= 0 ? '#ff4d4d' : timeMs > 12 * 3600000 ? '#3dff9e' : timeMs > 4 * 3600000 ? '#ffc933' : '#ff4d4d';
+                    const timeColor = timeMs <= 0 ? '#ff4d4d' : timeMs > 12 * 3600000 ? '#3dff9e' : timeMs > 4 * 3600000 ? 'var(--primary-hover)' : '#ff4d4d';
 
                     return (
                       <div
@@ -818,7 +818,7 @@ export const Trade: FC = () => {
                 </div>
                 <div className="confirm-row">
                   <span>Leverage</span>
-                  <span className="mono" style={{ color: '#ffb300' }}>{leverage}x</span>
+                  <span className="mono" style={{ color: 'var(--primary)' }}>{leverage}x</span>
                 </div>
                 <div className="confirm-divider" />
                 <div className="confirm-row">
@@ -852,7 +852,7 @@ export const Trade: FC = () => {
                 </div>
                 <div className="confirm-row">
                   <span>Profit Lock</span>
-                  <span className="mono" style={{ color: '#ffb300' }}>30% → $FRONT</span>
+                  <span className="mono" style={{ color: 'var(--primary)' }}>30% → $FRONT</span>
                 </div>
               </div>
 

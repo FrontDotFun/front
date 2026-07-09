@@ -66,7 +66,7 @@ export const Explore: FC = () => {
   const tierBadge = (tier: string) => {
     const tierMap: Record<string, { color: string; bg: string; label: string }> = {
       bonded: { color: '#3dff9e', bg: 'rgba(61, 255, 158, 0.08)', label: 'Bonded' },
-      rising: { color: '#ffb300', bg: 'rgba(255, 179, 0, 0.06)', label: 'Rising' },
+      rising: { color: 'var(--primary)', bg: 'rgba(255, 179, 0, 0.06)', label: 'Rising' },
       degen: { color: '#ff4d4d', bg: 'rgba(255, 77, 77, 0.08)', label: 'Degen' },
     };
     const t = tierMap[tier] || tierMap.degen;
@@ -145,7 +145,7 @@ export const Explore: FC = () => {
                 transition: 'all 0.25s ease',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = '#ffb30040';
+                e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb),0.25)';
                 e.currentTarget.style.transform = 'translateY(-3px)';
                 e.currentTarget.style.boxShadow = '0 8px 24px rgba(255, 179, 0, 0.06)';
               }}
@@ -186,10 +186,10 @@ export const Explore: FC = () => {
                 />
                 <div style={{
                   width: 42, height: 42, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #ffb30025, #ffb30008)',
+                  background: 'linear-gradient(135deg, rgba(var(--primary-rgb),0.15), rgba(var(--primary-rgb),0.04))',
                   display: 'none',
                   alignItems: 'center', justifyContent: 'center',
-                  fontSize: 16, fontWeight: 700, color: '#ffb300',
+                  fontSize: 16, fontWeight: 700, color: 'var(--primary)',
                   border: '2px solid #262418',
                   flexShrink: 0,
                 }}>
@@ -240,7 +240,7 @@ export const Explore: FC = () => {
                 </div>
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 10, color: '#6b664f', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Max Leverage</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#ffb300', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', fontFamily: "'JetBrains Mono', monospace" }}>
                     {token.maxLeverage ? `${token.maxLeverage}x` : '—'}
                   </div>
                 </div>

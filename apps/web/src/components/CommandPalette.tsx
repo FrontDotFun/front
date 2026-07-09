@@ -1,10 +1,11 @@
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
+import { THEMES, THEME_LABELS, applyTheme } from '../lib/theme';
 
 interface Command {
   id: string;
-  group: 'GOTO' | 'TOKENS';
+  group: 'GOTO' | 'TOKENS' | 'PHOSPHOR';
   icon: string;
   label: string;
   hint?: string;
@@ -71,7 +72,17 @@ export const CommandPalette: FC = () => {
       { id: 'stats', group: 'GOTO', icon: '▸', label: 'Protocol Stats', hint: '6', action: () => go('/stats') },
       { id: 'docs', group: 'GOTO', icon: '▸', label: 'Docs / Manual', hint: '7', action: () => go('/docs') },
       { id: 'account', group: 'GOTO', icon: '▸', label: 'Account', hint: '8', action: () => go('/account') },
+      { id: 'burns', group: 'GOTO', icon: '▸', label: 'Burn Log', action: () => go('/burns') },
+      { id: 'creator', group: 'GOTO', icon: '▸', label: 'Creator Dashboard', action: () => go('/creator') },
     ];
+
+    const themes: Command[] = THEMES.map((t) => ({
+      id: `theme-${t}`,
+      group: 'PHOSPHOR' as const,
+      icon: '◉',
+      label: `Theme: ${THEME_LABELS[t]}`,
+      action: () => { applyTheme(t); setOpen(false); },
+    }));
 
     const tok: Command[] = tokens.map((t) => ({
       id: `tok-${t.address}`,
@@ -82,7 +93,7 @@ export const CommandPalette: FC = () => {
       action: () => go(`/trade?token=${t.address}`),
     }));
 
-    return [...nav, ...tok];
+    return [...nav, ...tok, ...themes];
   }, [tokens, go]);
 
   const filtered = useMemo(() => {

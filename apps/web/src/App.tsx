@@ -9,6 +9,8 @@ import { Portfolio } from './pages/Portfolio';
 import { Account } from './pages/Account';
 import { ListToken } from './pages/ListToken';
 import { Locks } from './pages/Locks';
+import { Burns } from './pages/Burns';
+import { Creator } from './pages/Creator';
 import { Stats } from './pages/Stats';
 import { Docs } from './pages/Docs';
 import { Auth } from './pages/Auth';
@@ -34,6 +36,8 @@ export function App() {
               <Route path="/account" element={<Account />} />
               <Route path="/list" element={<ListToken />} />
               <Route path="/locks" element={<Locks />} />
+              <Route path="/burns" element={<Burns />} />
+              <Route path="/creator" element={<Creator />} />
               <Route path="/stats" element={<Stats />} />
               <Route path="/docs" element={<Docs />} />
             </Route>
