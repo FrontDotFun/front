@@ -2,13 +2,18 @@ import { type FC, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../providers/AuthProvider';
+import { getDeviceId } from '../lib/api';
 
 export const Auth: FC = () => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(() =>
+    new URLSearchParams(window.location.search).get('error') === 'account_limit'
+      ? 'An account already exists on this device or network. Only one account is allowed.'
+      : '',
+  );
   const [submitting, setSubmitting] = useState(false);
   const { login, register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -43,6 +48,7 @@ export const Auth: FC = () => {
   };
 
   const handleGoogleLogin = () => {
+    getDeviceId(); // ensure the scale_did cookie exists before the redirect
     const apiUrl = import.meta.env.VITE_API_URL
       ? `${import.meta.env.VITE_API_URL.replace(/\/+$/, '').replace(/\/api$/, '')}/api`
       : '/api';

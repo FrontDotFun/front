@@ -11,6 +11,7 @@ import { issueToken, verifyWalletSignature, type AuthenticatedRequest } from '..
 import { sendSuccess, sendError } from '../lib/response';
 import { ValidationError, AuthError } from '../lib/errors';
 import { authLimiter } from '../middleware/rateLimit';
+import { signupIdentity, assertSignupAllowed } from '../lib/signupGuard';
 
 const router = Router();
 
@@ -56,6 +57,10 @@ router.post('/register', authLimiter, async (req, res) => {
       throw new ValidationError('Email already registered');
     }
 
+    // Sybil resistance — one account per device / bounded per network
+    const identity = signupIdentity(req);
+    await assertSignupAllowed(identity);
+
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
@@ -69,6 +74,8 @@ router.post('/register', authLimiter, async (req, res) => {
         passwordHash,
         walletAddress,
         encryptedKey,
+        registrationIp: identity.ip,
+        deviceId: identity.deviceId,
       },
     });
 
@@ -391,6 +398,15 @@ router.get('/google/callback', async (req, res) => {
     let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
 
     if (!user) {
+      // Sybil resistance — same caps as email signup. The device cookie
+      // (scale_did) rides the top-level OAuth navigation; IP is best-effort.
+      const identity = signupIdentity(req);
+      try {
+        await assertSignupAllowed(identity);
+      } catch {
+        return res.redirect(`${FRONTEND_URL}/auth?error=account_limit`);
+      }
+
       // New user — generate Solana wallet
       const { publicKey: walletAddress, encryptedPrivateKey: encryptedKey } = generateBotWallet();
 
@@ -403,6 +419,8 @@ router.get('/google/callback', async (req, res) => {
           passwordHash: randomPass,
           walletAddress,
           encryptedKey,
+          registrationIp: identity.ip,
+          deviceId: identity.deviceId,
         },
       });
     }

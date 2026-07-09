@@ -6,6 +6,27 @@ const BASE_URL = import.meta.env.VITE_API_URL
   : '/api';
 
 const TOKEN_KEY = 'front_token';
+const DEVICE_KEY = 'scale_did';
+
+/**
+ * Stable per-device id for sybil resistance. Persisted in localStorage
+ * and mirrored to the `scale_did` cookie so it also rides the top-level
+ * Google OAuth navigation (which can't carry custom headers).
+ */
+export function getDeviceId(): string {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id || !/^[A-Za-z0-9_-]{8,64}$/.test(id)) {
+      id = (crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`).replace(/[^A-Za-z0-9_-]/g, '');
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    // 1-year cookie, same-site so it's sent on the /api/auth/google redirect
+    document.cookie = `${DEVICE_KEY}=${id}; path=/; max-age=31536000; SameSite=Lax`;
+    return id;
+  } catch {
+    return '';
+  }
+}
 
 /** Get stored auth token */
 export function getAuthToken(): string | null {
@@ -42,6 +63,7 @@ async function request<T>(
   const token = getAuthToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'x-device-id': getDeviceId(),
     ...((options.headers as Record<string, string>) ?? {}),
   };
 

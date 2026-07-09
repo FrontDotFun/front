@@ -6,6 +6,16 @@ import rateLimit from 'express-rate-limit';
 import type { Request } from 'express';
 import type { AuthenticatedRequest } from './auth';
 
+/** Real client IP behind Vercel→Railway — left-most X-Forwarded-For. */
+function clientIp(req: Request): string {
+  const xff = req.headers['x-forwarded-for'];
+  const chain = Array.isArray(xff) ? xff.join(',') : (xff ?? '');
+  return (chain.split(',')[0]?.trim() || req.ip || req.socket.remoteAddress || 'unknown');
+}
+
+// trust proxy is set intentionally (app.ts) — silence the permissive check
+const skipTrustProxyValidation = { validate: { trustProxy: false, xForwardedForHeader: false } };
+
 /**
  * Default rate limit: 100 requests per minute per IP.
  * Applied to all routes unless overridden.
@@ -19,9 +29,8 @@ export const defaultLimiter = rateLimit({
     success: false,
     error: 'Too many requests, please try again later.',
   },
-  keyGenerator: (req: Request) => {
-    return req.ip || req.socket.remoteAddress || 'unknown';
-  },
+  keyGenerator: clientIp,
+  ...skipTrustProxyValidation,
 });
 
 /**
@@ -38,10 +47,11 @@ export const tradingLimiter = rateLimit({
     error: 'Trading rate limit exceeded. Max 10 operations per minute.',
   },
   keyGenerator: (req: Request) => {
-    // Use wallet address if authenticated, fall back to IP
+    // Use wallet address if authenticated, fall back to real client IP
     const authReq = req as AuthenticatedRequest;
-    return authReq.wallet || req.ip || req.socket.remoteAddress || 'unknown';
+    return authReq.wallet || clientIp(req);
   },
+  ...skipTrustProxyValidation,
 });
 
 /**
@@ -57,9 +67,8 @@ export const publicLimiter = rateLimit({
     success: false,
     error: 'Too many requests, please try again later.',
   },
-  keyGenerator: (req: Request) => {
-    return req.ip || req.socket.remoteAddress || 'unknown';
-  },
+  keyGenerator: clientIp,
+  ...skipTrustProxyValidation,
 });
 
 /**
@@ -75,7 +84,6 @@ export const authLimiter = rateLimit({
     success: false,
     error: 'Too many auth attempts. Please try again in a minute.',
   },
-  keyGenerator: (req: Request) => {
-    return req.ip || req.socket.remoteAddress || 'unknown';
-  },
+  keyGenerator: clientIp,
+  ...skipTrustProxyValidation,
 });

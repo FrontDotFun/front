@@ -95,6 +95,48 @@ describe('Auth Routes', () => {
     });
   });
 
+  describe('POST /api/auth/register — sybil resistance', () => {
+    it('blocks a second account from the same device', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      // device already has 1 account
+      vi.mocked(prisma.user.count).mockResolvedValue(1);
+
+      const { agent } = createTestApp();
+      const res = await agent
+        .post('/api/auth/register')
+        .set('X-Forwarded-For', '203.0.113.10') // own rate-limit bucket
+        .set('x-device-id', 'device-abc12345')
+        .send({ email: 'dupe@example.com', password: 'test123456' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error).toMatch(/one account.*per device/i);
+      expect(prisma.user.create).not.toHaveBeenCalled();
+    });
+
+    it('records registration IP and device id on success', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.user.count).mockResolvedValue(0);
+      const createSpy = vi.mocked(prisma.user.create).mockResolvedValue({
+        id: 2, email: 'fresh@example.com', walletAddress: 'MockPubkey2',
+        encryptedKey: 'k', passwordHash: 'h', createdAt: new Date(),
+        registrationIp: null, deviceId: null,
+      } as any);
+
+      const { agent } = createTestApp();
+      const res = await agent
+        .post('/api/auth/register')
+        .set('X-Forwarded-For', '203.0.113.20') // own rate-limit bucket
+        .set('x-device-id', 'device-fresh999')
+        .send({ email: 'fresh@example.com', password: 'test123456' });
+
+      expect(res.status).toBe(201);
+      const data = createSpy.mock.calls[0][0].data as any;
+      expect(data.deviceId).toBe('device-fresh999');
+      expect(data.registrationIp).toBe('203.0.113.20');
+    });
+  });
+
   describe('POST /api/auth/login', () => {
     it('rejects missing fields (or rate-limits)', async () => {
       const { agent } = createTestApp();

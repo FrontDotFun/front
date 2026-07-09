@@ -15,6 +15,10 @@ import { sendError } from './lib/response';
 export function createApp(): express.Express {
   const app = express();
 
+  // Behind Vercel→Railway proxies — trust X-Forwarded-For so rate
+  // limiting and sybil checks see the real client IP, not the proxy.
+  app.set('trust proxy', true);
+
   // ──────────────────────────────────────────────
   // Global Middleware
   // ──────────────────────────────────────────────
@@ -30,7 +34,7 @@ export function createApp(): express.Express {
         : true,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-id', 'x-telegram-auth'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'x-telegram-id', 'x-telegram-auth', 'x-device-id'],
     }),
   );
 
