@@ -4,6 +4,7 @@ import { WalletButton } from './WalletButton';
 import { CommandPalette } from './CommandPalette';
 import { ThemeSwitcher } from './ThemeSwitcher';
 import { SfxToggle } from './SfxToggle';
+import { Logo } from './Logo';
 import { HelpOverlay } from './HelpOverlay';
 import { blip } from '../lib/sfx';
 import { fetchTokenOverview } from '../lib/birdeye';
@@ -141,8 +142,8 @@ export const Layout: FC = () => {
       {/* ── Terminal Status Bar ─────────────────── */}
       <nav className="top-nav">
         <NavLink to="/" className="top-nav-logo">
-          <img src="/front-logo.png" alt="Front" width="20" height="20" />
-          <span>FRONT_</span>
+          <Logo size={20} />
+          <span>FRONT<i className="logo-cursor" /></span>
         </NavLink>
 
         <div className="top-nav-tabs">

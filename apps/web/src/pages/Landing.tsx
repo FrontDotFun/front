@@ -6,6 +6,7 @@ import { ReplaySim } from '../components/ReplaySim';
 import { ThemeSwitcher } from '../components/ThemeSwitcher';
 import { SfxToggle } from '../components/SfxToggle';
 import { HelpOverlay } from '../components/HelpOverlay';
+import { Logo } from '../components/Logo';
 import { chartPalette, onThemeChange } from '../lib/theme';
 import * as api from '../lib/api';
 
@@ -320,8 +321,8 @@ export const Landing: FC = () => {
       {/* Nav */}
       <nav className="lp-nav">
         <div className="lp-logo">
-          <img src="/front-logo.png" alt="" width="22" height="22" />
-          <span className="lp-logo-text">FRONT_</span>
+          <Logo size={22} />
+          <span className="lp-logo-text">FRONT<i className="logo-cursor" /></span>
         </div>
         <div className="lp-nav-links">
           <a href="#sim">SIMULATOR</a>
