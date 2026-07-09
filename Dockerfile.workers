@@ -5,21 +5,20 @@
 # position closer, burn engine, lock engine, creator payouts,
 # listing scanner.
 #
-# Single-stage on purpose — mirrors the proven Dockerfile.api
-# pattern. pnpm workspaces resolve deps through per-package
-# node_modules symlinks into the root .pnpm store; multi-stage
-# copying breaks that unless every symlink dir is carried over.
+# Mirrors Dockerfile.api 1:1 — the workspace packages export their
+# TypeScript sources (@front-protocol/database → src/index.ts), so
+# production runs under tsx exactly like the api service does.
+# Compiled-dist multi-stage variants break on pnpm symlinks and on
+# the .ts exports; this pattern is the one proven in production.
 
-FROM node:20-slim
+FROM node:22-slim
 
 # openssl is required by Prisma on slim images
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN npm install -g pnpm@9 tsx
 
 WORKDIR /app
-# tsconfig.base.json is extended by every package tsconfig — without it
-# tsc silently falls back to ES3 defaults and dies on BigInt literals
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/core/package.json packages/core/
 COPY packages/database/package.json packages/database/
@@ -33,13 +32,9 @@ COPY packages/database/ packages/database/
 COPY packages/solana/ packages/solana/
 COPY packages/services/ packages/services/
 
-RUN pnpm -C packages/database exec prisma generate
-RUN pnpm -C packages/database build
-RUN pnpm -C packages/core build
-RUN pnpm -C packages/solana build
-RUN pnpm -C packages/services build
+RUN cd packages/database && npx prisma generate
 
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--enable-source-maps"
 
-CMD ["node", "packages/services/dist/scheduler.js"]
+CMD ["tsx", "packages/services/src/scheduler.ts"]
