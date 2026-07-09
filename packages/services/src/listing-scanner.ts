@@ -31,7 +31,7 @@ try {
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[listing-scanner]';
-const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || '2uNqHvi3RrkFaFmtBM2KT9eWBDEqoj2eomL97A2v9hoM';
+const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || 'DAcjYqJzSHXqYfGzgEwfd2HVcxYPXemnLXc27fHwaLq4';
 
 interface ListingScanJobData {
   /** When set, only scan a specific mint address */

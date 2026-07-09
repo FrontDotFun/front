@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, useState, useEffect, useRef, useCallback } from 'react';
+import { type FC, type ReactNode, useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Scramble } from '../components/fx/Scramble';
@@ -13,63 +13,6 @@ import * as api from '../lib/api';
    SCALE — PHOSPHOR landing experience
    POST boot · live market wall · risk computer · spec plates
    ═══════════════════════════════════════════════════════════════ */
-
-const SCALE_CA = 'f2LZJzFYi1DScywiKUanLpMuWoDKSgqvink82sxpump';
-
-/* ── Boot / POST sequence ───────────────────────────────────── */
-const BOOT_LINES: Array<{ text: string; status?: string }> = [
-  { text: 'SCALE TERMINAL BIOS v2.0.7 — PHOSPHOR' },
-  { text: 'MEM CHECK ................ 640K DEGEN RAM', status: 'OK' },
-  { text: 'SOLANA MAINNET LINK ......', status: 'OK' },
-  { text: 'LENDING POOL .............', status: 'ARMED' },
-  { text: 'LIQUIDATION ENGINE .......', status: 'HOT' },
-  { text: 'JUPITER ROUTER ...........', status: 'OK' },
-  { text: 'MERCY MODULE .............', status: 'NOT FOUND' },
-];
-
-const BootIntro: FC<{ onDone: () => void }> = ({ onDone }) => {
-  const [count, setCount] = useState(0);
-  const [leaving, setLeaving] = useState(false);
-
-  const finish = useCallback(() => {
-    setLeaving(true);
-    setTimeout(onDone, 350);
-  }, [onDone]);
-
-  useEffect(() => {
-    let i = 0;
-    const t = setInterval(() => {
-      i += 1;
-      setCount(i);
-      if (i >= BOOT_LINES.length) {
-        clearInterval(t);
-        setTimeout(finish, 650);
-      }
-    }, 190);
-    const key = () => finish();
-    window.addEventListener('keydown', key);
-    return () => { clearInterval(t); window.removeEventListener('keydown', key); };
-  }, [finish]);
-
-  return (
-    <div className={`boot-overlay ${leaving ? 'boot-leaving' : ''}`} onClick={finish}>
-      <div className="boot-box">
-        {BOOT_LINES.slice(0, count).map((l, idx) => (
-          <div key={idx} className="boot-line">
-            <span>{l.text}</span>
-            {l.status && (
-              <span className={`boot-status ${l.status === 'NOT FOUND' ? 'boot-status-warn' : ''}`}>
-                [{l.status}]
-              </span>
-            )}
-          </div>
-        ))}
-        <div className="boot-cursor" />
-      </div>
-      <div className="boot-skip blink">PRESS ANY KEY TO SKIP</div>
-    </div>
-  );
-};
 
 /* ── Market wall — REAL SOL/USD candles, drawn phosphor-style ─ */
 const WSOL = 'So11111111111111111111111111111111111111112';
@@ -303,18 +246,8 @@ const Reveal: FC<{ children: ReactNode; delay?: number }> = ({ children, delay =
 
 /* ── Page ───────────────────────────────────────────────────── */
 export const Landing: FC = () => {
-  const [booted, setBooted] = useState(() => {
-    try { return sessionStorage.getItem('front_booted') === '1'; } catch { return true; }
-  });
-
-  const onBootDone = useCallback(() => {
-    try { sessionStorage.setItem('front_booted', '1'); } catch { /* ignore */ }
-    setBooted(true);
-  }, []);
-
   return (
     <div className="lp">
-      {!booted && <BootIntro onDone={onBootDone} />}
       <HelpOverlay />
 
       {/* Nav */}
@@ -509,15 +442,6 @@ export const Landing: FC = () => {
         <div className="lp-footer-left">
           <span className="lp-logo-text">SCALE_</span>
           <span className="lp-footer-dim">BUILT FOR DEGENS. THE POOL NEVER LOSES.</span>
-          <a
-            className="lp-footer-ca mono"
-            href={`https://pump.fun/coin/${SCALE_CA}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={SCALE_CA}
-          >
-            CA: {SCALE_CA.slice(0, 6)}…{SCALE_CA.slice(-6)}
-          </a>
         </div>
         <div className="lp-footer-links">
           <a href="https://twitter.com/FrontDotFun" target="_blank" rel="noreferrer">TWITTER</a>

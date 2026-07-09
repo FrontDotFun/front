@@ -293,7 +293,13 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
-const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL || 'http://localhost:4001/api/auth/google/callback';
+// Route OAuth through the branded domain — Google's consent screen shows
+// this redirect_uri, so it must be front.fun, never the raw Railway host.
+// Vercel proxies /api/* to this backend, so the branded path resolves here.
+const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL
+  || (process.env.NODE_ENV === 'production'
+    ? 'https://www.front.fun/api/auth/google/callback'
+    : 'http://localhost:4001/api/auth/google/callback');
 const FRONTEND_URL = process.env.NODE_ENV === 'production' ? 'https://www.front.fun' : 'http://localhost:5173';
 
 /** One-time auth codes: code → { token, expiresAt } */

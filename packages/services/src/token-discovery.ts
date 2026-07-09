@@ -19,7 +19,7 @@ import { getConnection, PublicKey } from '@front-protocol/solana';
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[token-discovery]';
-const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || '2uNqHvi3RrkFaFmtBM2KT9eWBDEqoj2eomL97A2v9hoM';
+const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || 'DAcjYqJzSHXqYfGzgEwfd2HVcxYPXemnLXc27fHwaLq4';
 
 // Pump.fun program IDs to look for in transaction logs
 const PUMP_PROGRAM = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';

@@ -1,7 +1,7 @@
 import { type FC, useState } from 'react';
 import * as api from '../lib/api';
 
-const PROTOCOL_WALLET = '2uNqHvi3RrkFaFmtBM2KT9eWBDEqoj2eomL97A2v9hoM';
+const PROTOCOL_WALLET = 'DAcjYqJzSHXqYfGzgEwfd2HVcxYPXemnLXc27fHwaLq4';
 
 const stepStyle = {
   background: 'var(--bg-2)',

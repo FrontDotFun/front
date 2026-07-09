@@ -38,7 +38,7 @@ try {
 }
 
 const PREFIX = '[fee-claimer]';
-const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || '2uNqHvi3RrkFaFmtBM2KT9eWBDEqoj2eomL97A2v9hoM';
+const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || 'DAcjYqJzSHXqYfGzgEwfd2HVcxYPXemnLXc27fHwaLq4';
 
 // Minimum claim threshold (0.001 SOL)
 const MIN_CLAIM_LAMPORTS = BigInt(1_000_000);
