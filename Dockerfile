@@ -12,7 +12,7 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/core/package.json packages/core/
 COPY packages/database/package.json packages/database/
-COPY packages/solana/package.json packages/solana/
+COPY packages/evm/package.json packages/evm/
 COPY packages/services/package.json packages/services/
 COPY packages/api/package.json packages/api/
 
@@ -22,7 +22,6 @@ COPY packages/ packages/
 
 RUN cd packages/database && npx prisma generate
 RUN cd packages/core && pnpm build
-RUN cd packages/solana && pnpm build
 RUN cd packages/services && pnpm build
 
 ENV NODE_ENV=production

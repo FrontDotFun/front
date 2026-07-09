@@ -391,7 +391,7 @@ export const Auth: FC = () => {
           }}>
             <div style={{ fontSize: 11, color: '#5c6b60', lineHeight: 1.6 }}>
               {mode === 'register' ? (
-                <>A fresh Solana wallet will be generated for your account. You can deposit SOL to start trading with leverage.</>
+                <>A fresh Robinhood Chain wallet will be generated for your account. You can deposit ETH to start trading with leverage.</>
               ) : (
                 <>Sign in to access your trading account and managed wallet.</>
               )}

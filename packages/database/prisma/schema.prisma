@@ -16,6 +16,8 @@ model User {
   passwordHash   String   @map("password_hash") @db.Text
   walletAddress  String   @unique @map("wallet_address") @db.VarChar(44)
   encryptedKey   String   @map("encrypted_key") @db.Text
+  legacyWalletAddress String? @map("legacy_wallet_address") @db.VarChar(44) // pre-EVM Solana wallet
+  legacyEncryptedKey  String? @map("legacy_encrypted_key") @db.Text
   registrationIp String?  @map("registration_ip") @db.VarChar(64)  // sybil resistance
   deviceId       String?  @map("device_id") @db.VarChar(64)         // sybil resistance
   createdAt      DateTime @default(now()) @map("created_at")

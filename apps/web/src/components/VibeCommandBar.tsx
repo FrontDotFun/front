@@ -60,8 +60,8 @@ export const VibeCommandBar: FC<VibeCommandBarProps> = ({
     }
     result.action = 'long';
 
-    // Extract SOL amount: "0.5 sol", "0.5sol", "0.5 SOL"
-    const solMatch = lower.match(/(\d+\.?\d*)\s*sol/);
+    // Extract ETH amount: "0.5 eth", "0.5eth", "0.5 ETH"
+    const solMatch = lower.match(/(\d+\.?\d*)\s*(?:eth|sol)/);
     if (solMatch) {
       result.capitalSol = parseFloat(solMatch[1]);
     }
@@ -116,7 +116,7 @@ export const VibeCommandBar: FC<VibeCommandBarProps> = ({
       chips.push({ label: 'TOKEN', value: selectedTokenSymbol, color: 'var(--text-2)' });
     }
     if (lastParsed.capitalSol) {
-      chips.push({ label: 'SIZE', value: `${lastParsed.capitalSol} SOL`, color: 'var(--cyan)' });
+      chips.push({ label: 'SIZE', value: `${lastParsed.capitalSol} ETH`, color: 'var(--cyan)' });
     }
     if (lastParsed.leverage) {
       chips.push({ label: 'LEV', value: `${lastParsed.leverage}x`, color: 'var(--yellow)' });

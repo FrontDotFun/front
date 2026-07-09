@@ -1,31 +1,41 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Burn Engine Worker
+// SCALE PROTOCOL — Burn Engine Worker (Robinhood Chain)
 // ──────────────────────────────────────────────
 //
-// Accumulates SOL for $FRONT buyback-and-burn operations.
-// Once the pending balance exceeds 1 SOL, executes the burn batch.
+// Accumulates ETH for $SCALE buyback-and-burn operations.
+// Once the pending balance exceeds the threshold, buys $SCALE via
+// Uniswap V3 and sends it to the dead address (0x…dEaD).
 // Pending balance is persisted in Redis to survive process restarts.
+// Until the $SCALE token + EVM pool key are configured, burns defer
+// honestly: the balance keeps accumulating and nothing is fabricated.
 //
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL, formatSol } from '@front-protocol/core';
-import { getProtocolWallet, swapSolToToken, burnToken, PublicKey } from '@front-protocol/solana';
+import {
+  getProtocolAccount,
+  hasEvmProtocolKey,
+  swapEthForToken,
+  erc20Transfer,
+  DEAD_ADDRESS,
+} from '@front-protocol/evm';
+import { getTokenPricesEth } from './evm-prices.js';
+
+const fmtEth = (wei: bigint): string => (Number(wei) / 1e18).toFixed(6);
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[burn-engine]';
 
-/** Minimum SOL to accumulate before executing a burn (1 SOL) */
-const BURN_THRESHOLD_LAMPORTS = LAMPORTS_PER_SOL; // 1_000_000_000n
+/** Minimum ETH to accumulate before executing a burn (0.05 ETH) */
+const BURN_THRESHOLD_LAMPORTS = BigInt(process.env.BURN_THRESHOLD_WEI ?? '50000000000000000');
 
-/** Redis key for the persistent burn accumulator */
-const REDIS_PENDING_BURN_KEY = 'front:burn:pending_lamports';
+/** Redis key for the persistent burn accumulator (wei) */
+const REDIS_PENDING_BURN_KEY = 'scale:burn:pending_wei';
 
-/** $FRONT token mint — read from env; empty triggers simulation mode */
-const FRONT_TOKEN_MINT = process.env.FRONT_TOKEN_MINT ?? '';
+/** $SCALE token address (ERC-20 on Robinhood Chain) — read from env */
+const FRONT_TOKEN_MINT = (process.env.FRONT_TOKEN_MINT ?? '').trim();
 
-/** Default slippage tolerance for Jupiter swaps (300 bps = 3%) */
-const BURN_SLIPPAGE_BPS = 300;
+const canBurn = () => /^0x[a-fA-F0-9]{40}$/.test(FRONT_TOKEN_MINT) && hasEvmProtocolKey();
 
 interface BurnJobData {
   positionId: number;
@@ -56,47 +66,50 @@ async function resetPendingInRedis(): Promise<void> {
 }
 
 /**
- * Execute a buyback-and-burn: swap SOL → $FRONT via Jupiter, then burn the tokens.
+ * Execute a buyback-and-burn: swap ETH → $SCALE via Uniswap V3,
+ * then transfer the tokens to the dead address.
  *
- * @returns Transaction signature and number of $FRONT tokens burned
+ * @returns Transaction hash of the burn transfer and tokens burned
  */
 async function executeBurn(solAmountLamports: bigint): Promise<{
   txSignature: string;
   tokensBurned: bigint;
 }> {
-  // Simulation mode — FRONT_TOKEN_MINT not configured
-  if (!FRONT_TOKEN_MINT) {
-    console.warn(`${PREFIX} ⚠️  FRONT_TOKEN_MINT not set — running in simulation mode`);
-    const estimatedTokens = solAmountLamports * 1000n;
-    return {
-      txSignature: `sim_burn_${Date.now()}`,
-      tokensBurned: estimatedTokens,
-    };
+  const protocolAccount = getProtocolAccount();
+
+  // Step 1: Uniswap V3 swap ETH → $SCALE
+  console.log(
+    `${PREFIX} Swapping ${fmtEth(solAmountLamports)} ETH → $SCALE (${FRONT_TOKEN_MINT.substring(0, 10)}…)`,
+  );
+
+  let minOut = 1n;
+  try {
+    const prices = await getTokenPricesEth([FRONT_TOKEN_MINT]);
+    const p = prices.get(FRONT_TOKEN_MINT.toLowerCase());
+    if (p && p.weiPerRawUnit > 0) {
+      const expected = BigInt(Math.floor(Number(solAmountLamports) / p.weiPerRawUnit));
+      const floor = (expected * 9_600n) / 10_000n; // 3% slippage + 1% pool fee
+      if (floor > 0n) minOut = floor;
+    }
+  } catch {
+    // price feed down — pool state is the fallback defense
   }
 
-  const protocolWallet = getProtocolWallet();
-  const frontMint = new PublicKey(FRONT_TOKEN_MINT);
-
-  // Step 1: Jupiter swap SOL → $FRONT
-  console.log(
-    `${PREFIX} Executing Jupiter swap ${formatSol(solAmountLamports)} SOL → $FRONT (${FRONT_TOKEN_MINT.substring(0, 8)}…)`,
-  );
-
-  const { txSignature: swapTx, tokensReceived } = await swapSolToToken(
-    solAmountLamports,
+  const { txHash: swapTx, amountOut: tokensReceived } = await swapEthForToken(
+    protocolAccount,
     FRONT_TOKEN_MINT,
-    BURN_SLIPPAGE_BPS,
-    protocolWallet,
+    solAmountLamports,
+    minOut,
   );
 
   console.log(
-    `${PREFIX} Swap complete: received ${tokensReceived} $FRONT (tx: ${swapTx})`,
+    `${PREFIX} Swap complete: received ${tokensReceived} $SCALE (tx: ${swapTx})`,
   );
 
-  // Step 2: Burn the purchased $FRONT tokens
-  console.log(`${PREFIX} Burning ${tokensReceived} $FRONT tokens…`);
+  // Step 2: Burn — transfer to the dead address (irrecoverable)
+  console.log(`${PREFIX} Burning ${tokensReceived} $SCALE → ${DEAD_ADDRESS}…`);
 
-  const burnTx = await burnToken(frontMint, tokensReceived, protocolWallet);
+  const burnTx = await erc20Transfer(protocolAccount, FRONT_TOKEN_MINT, DEAD_ADDRESS, tokensReceived);
 
   console.log(`${PREFIX} 🔥 Burn tx confirmed: ${burnTx}`);
 
@@ -114,18 +127,27 @@ async function processBurnJob(job: Job<BurnJobData>): Promise<void> {
   const solAmount = BigInt(solAmountStr);
 
   console.log(
-    `${PREFIX} Received burn request: ${formatSol(solAmount)} SOL from position #${positionId}`,
+    `${PREFIX} Received burn request: ${fmtEth(solAmount)} ETH from position #${positionId}`,
   );
 
   try {
     // Atomically accumulate in Redis
     const newPending = await addPendingToRedis(solAmount);
-    console.log(`${PREFIX} Pending burn total: ${formatSol(newPending)} SOL`);
+    console.log(`${PREFIX} Pending burn total: ${fmtEth(newPending)} ETH`);
 
     // Check if we've hit the threshold
     if (newPending < BURN_THRESHOLD_LAMPORTS) {
       console.log(
-        `${PREFIX} Below threshold (${formatSol(BURN_THRESHOLD_LAMPORTS)} SOL), accumulating...`,
+        `${PREFIX} Below threshold (${fmtEth(BURN_THRESHOLD_LAMPORTS)} ETH), accumulating...`,
+      );
+      return;
+    }
+
+    // Honest gate: without a $SCALE token + EVM pool key there is
+    // nothing real to burn — keep accumulating, fabricate nothing.
+    if (!canBurn()) {
+      console.warn(
+        `${PREFIX} Burn deferred — $SCALE token or EVM pool key not configured yet (pending: ${fmtEth(newPending)} ETH)`,
       );
       return;
     }
@@ -133,7 +155,7 @@ async function processBurnJob(job: Job<BurnJobData>): Promise<void> {
     // Execute burn with accumulated amount
     const burnAmount = newPending;
 
-    console.log(`${PREFIX} Threshold reached! Executing burn of ${formatSol(burnAmount)} SOL`);
+    console.log(`${PREFIX} Threshold reached! Executing burn of ${fmtEth(burnAmount)} ETH`);
 
     const { txSignature, tokensBurned } = await executeBurn(burnAmount);
 
@@ -164,7 +186,7 @@ async function processBurnJob(job: Job<BurnJobData>): Promise<void> {
     ]);
 
     console.log(
-      `${PREFIX} 🔥 Burned ${formatSol(burnAmount)} SOL → ${tokensBurned} $FRONT tokens (tx: ${txSignature})`,
+      `${PREFIX} 🔥 Burned ${fmtEth(burnAmount)} ETH → ${tokensBurned} $SCALE tokens (tx: ${txSignature})`,
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

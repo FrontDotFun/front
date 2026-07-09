@@ -10,11 +10,11 @@ export function useStats() {
 
   const stats = result.data;
 
-  const poolSizeSol = stats ? Number(stats.poolSizeLamports) / 1e9 : 0;
-  const totalBurnedSol = stats ? Number(stats.totalBurnedLamports) / 1e9 : 0;
-  const totalLockedSol = stats ? Number(stats.totalLockedLamports) / 1e9 : 0;
+  const poolSizeSol = stats ? Number(stats.poolSizeLamports) / 1e18 : 0;
+  const totalBurnedSol = stats ? Number(stats.totalBurnedLamports) / 1e18 : 0;
+  const totalLockedSol = stats ? Number(stats.totalLockedLamports) / 1e18 : 0;
   const totalCreatorPayoutsSol = stats
-    ? Number(stats.totalCreatorPayoutsLamports) / 1e9
+    ? Number(stats.totalCreatorPayoutsLamports) / 1e18
     : 0;
 
   return {

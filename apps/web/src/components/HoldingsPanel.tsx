@@ -51,7 +51,7 @@ export const HoldingsPanel: FC = () => {
         <div style={cardStyle}>
           <div style={statLabel}>Capital Locked</div>
           <div style={statValue}>
-            {((Number(portfolio?.positions.totalCapitalLocked || 0)) / 1e9).toFixed(2)} SOL
+            {((Number(portfolio?.positions.totalCapitalLocked || 0)) / 1e18).toFixed(4)} ETH
           </div>
         </div>
         <div style={cardStyle}>
@@ -105,7 +105,7 @@ export const HoldingsPanel: FC = () => {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#eef3ef', fontFamily: "'JetBrains Mono', monospace" }}>
-                    {(Number(p.userCapital) / 1e9).toFixed(3)} SOL
+                    {(Number(p.userCapital) / 1e18).toFixed(4)} ETH
                   </div>
                   <div style={{ fontSize: 11, color: '#5c6b60' }}>
                     {new Date(p.openedAt).toLocaleDateString()}
@@ -128,13 +128,13 @@ export const HoldingsPanel: FC = () => {
               fontSize: 16,
               color: Number(portfolio?.history.totalPnlLamports || 0) >= 0 ? '#00c805' : '#ff4d4d',
             }}>
-              {((Number(portfolio?.history.totalPnlLamports || 0)) / 1e9).toFixed(4)} SOL
+              {((Number(portfolio?.history.totalPnlLamports || 0)) / 1e18).toFixed(4)} ETH
             </div>
           </div>
           <div>
             <div style={statLabel}>Locked Profits</div>
             <div style={{ ...statValue, fontSize: 16 }}>
-              {((Number(portfolio?.locks.totalLockedLamports || 0)) / 1e9).toFixed(4)} SOL
+              {((Number(portfolio?.locks.totalLockedLamports || 0)) / 1e18).toFixed(4)} ETH
             </div>
           </div>
         </div>

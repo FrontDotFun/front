@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Position Routes
+// SCALE PROTOCOL — Position Routes (Robinhood Chain / Uniswap V3)
 // ──────────────────────────────────────────────
 
 import { Router } from 'express';
@@ -16,14 +16,16 @@ import {
   type Tier,
 } from '@front-protocol/core';
 import {
-  swapSolToToken,
-  swapTokenToSol,
-  getProtocolWallet,
-  loadBotWallet,
-  getSolBalance,
-  getTokenBalance,
-  transferSol,
-} from '@front-protocol/solana';
+  swapEthForToken,
+  swapTokenForEth,
+  getProtocolAccount,
+  hasEvmProtocolKey,
+  loadCustodialWallet,
+  getEthBalance,
+  erc20Decimals,
+  transferEth,
+} from '@front-protocol/evm';
+import { fetchToken as gtFetchToken, fetchEthUsd } from '../lib/geckoterminal';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { tradingLimiter } from '../middleware/rateLimit';
 import { sendSuccess, sendError, sendPaginated } from '../lib/response';
@@ -37,7 +39,7 @@ const router = Router();
  *
  * Open a new leveraged position. Validates params against tier rules and pool balance,
  * creates the position record, and returns a preview.
- * The actual Solana transaction (swap) is handled by the services package.
+ * Swaps execute on Robinhood Chain via Uniswap V3 (SwapRouter02).
  */
 router.post(
   '/open',
@@ -151,66 +153,40 @@ router.post(
       }
 
       // Safety validation — slippage risk + liquidity depth check
-      // Fetch real SOL price and token liquidity
-      let solPriceUsd = 150;
+      // Real ETH price + token liquidity from GeckoTerminal (Robinhood Chain)
+      let ethPriceUsd = 0;
       let liquidityUsd = 0;
       let tokenSupply = 0;
       let tokenPriceUsd = 0;
 
-      const BIRDEYE_KEY = process.env.BIRDEYE_API_KEY || '';
       try {
-        // Fetch SOL price
-        const solPriceRes = await fetch('https://public-api.birdeye.so/defi/price?address=So11111111111111111111111111111111111111112', {
-          headers: { 'X-API-KEY': BIRDEYE_KEY, 'x-chain': 'solana' },
-        });
-        const solPriceData = await solPriceRes.json() as any;
-        if (solPriceData?.data?.value) solPriceUsd = solPriceData.data.value;
-
-        // Fetch token liquidity + supply
-        const tokenRes = await fetch(`https://public-api.birdeye.so/defi/token_overview?address=${tokenAddress}`, {
-          headers: { 'X-API-KEY': BIRDEYE_KEY, 'x-chain': 'solana' },
-        });
-        const tokenData = await tokenRes.json() as any;
-        if (tokenData?.data?.liquidity) liquidityUsd = tokenData.data.liquidity;
-        if (tokenData?.data?.supply) tokenSupply = tokenData.data.supply;
-        if (tokenData?.data?.price) tokenPriceUsd = tokenData.data.price;
-      } catch {
-        // Birdeye failed — try DexScreener as fallback
+        const [ethUsd, gtToken] = await Promise.all([
+          fetchEthUsd(),
+          gtFetchToken(tokenAddress),
+        ]);
+        ethPriceUsd = ethUsd;
+        liquidityUsd = gtToken.liquidity;
+        tokenPriceUsd = gtToken.price;
+        tokenSupply = gtToken.supply;
+      } catch (mktErr) {
+        console.warn('[positions] GeckoTerminal lookup failed:', mktErr instanceof Error ? mktErr.message : mktErr);
       }
-
-      // DexScreener fallback for liquidity if Birdeye fails or returns 0
-      if (liquidityUsd <= 0) {
-        try {
-          const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
-          if (dexRes.ok) {
-            const dexData = await dexRes.json() as any;
-            const pairs = dexData.pairs || [];
-            if (pairs.length > 0) {
-              const bestPair = pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
-              liquidityUsd = bestPair.liquidity?.usd || 0;
-              tokenPriceUsd = parseFloat(bestPair.priceUsd || '0');
-              if (bestPair.fdv && tokenPriceUsd > 0) {
-                tokenSupply = bestPair.fdv / tokenPriceUsd;
-              }
-            }
-          }
-        } catch {
-          // Both sources failed — use conservative defaults
-          // Still allow small positions by setting minimum liquidity
-          liquidityUsd = 10_000; // assume at least $10K to allow small trades
-        }
+      if (ethPriceUsd <= 0 || tokenPriceUsd <= 0) {
+        throw new ValidationError(
+          'Cannot price this token right now — market data unavailable. Try again shortly.',
+        );
       }
 
       // ── 3% supply cap ──
       // Protocol max buy = less than 3% of the token's total supply
-      if (tokenSupply > 0 && tokenPriceUsd > 0 && solPriceUsd > 0) {
+      if (tokenSupply > 0 && tokenPriceUsd > 0 && ethPriceUsd > 0) {
         const maxBuyUsd = tokenSupply * tokenPriceUsd * 0.03; // 3% of supply value
-        const positionSol = Number(positionSize) / 1e9;
-        const positionUsd = positionSol * solPriceUsd;
+        const positionEth = Number(positionSize) / 1e18;
+        const positionUsd = positionEth * ethPriceUsd;
         if (positionUsd > maxBuyUsd) {
           throw new ValidationError(
             `Position too large — would buy more than 3% of token supply. ` +
-            `Max position: ~${(maxBuyUsd / solPriceUsd).toFixed(2)} SOL`
+            `Max position: ~${(maxBuyUsd / ethPriceUsd).toFixed(4)} ETH`
           );
         }
       }
@@ -220,7 +196,7 @@ router.post(
         Number(leverage),
         poolBalance,
         liquidityUsd,
-        solPriceUsd,
+        ethPriceUsd,
         tier,
       );
       if (!safetyCheck.safe) {
@@ -240,60 +216,72 @@ router.post(
       if (!user) {
         throw new ValidationError('User wallet not found');
       }
-      const userKeypair = loadBotWallet(user.encryptedKey);
+      const userAccount = loadCustodialWallet(user.encryptedKey);
+      if (!hasEvmProtocolKey()) {
+        throw new ValidationError(
+          'Protocol pool wallet is not configured for Robinhood Chain yet — trading is paused.',
+        );
+      }
+      const protocolAccount = getProtocolAccount();
 
-      // 2. Check user has enough SOL balance
-      const userBalance = await getSolBalance(wallet);
+      // 2. Check user has enough ETH balance
+      const userBalance = await getEthBalance(wallet);
       if (userBalance < userCapital) {
         throw new ValidationError(
-          `You don't have enough SOL. Your balance is ${(Number(userBalance) / 1e9).toFixed(4)} SOL ` +
-          `but this position requires ${(Number(userCapital) / 1e9).toFixed(4)} SOL. ` +
-          `Deposit more SOL to your account wallet first.`,
+          `You don't have enough ETH. Your balance is ${(Number(userBalance) / 1e18).toFixed(6)} ETH ` +
+          `but this position requires ${(Number(userCapital) / 1e18).toFixed(6)} ETH. ` +
+          `Deposit more ETH to your account wallet first.`,
         );
       }
 
-      // 3. Transfer user's SOL collateral to protocol wallet
-      const protocolWallet = getProtocolWallet();
-      const transferSig = await transferSol(userKeypair, protocolWallet.publicKey, userCapital);
-      console.log(`[positions] User SOL transferred to protocol: ${transferSig}`);
+      // 3. Transfer user's ETH collateral to protocol wallet
+      const transferSig = await transferEth(userAccount, protocolAccount.address, userCapital);
+      console.log(`[positions] User ETH collateral transferred to protocol: ${transferSig}`);
 
-      // 4. Execute Jupiter swap — buy tokens with full position size (user + protocol capital)
-      const slippage = Number(slippageBps) || 150; // default 1.5% slippage
+      // 4. Execute Uniswap V3 swap — buy tokens with full position size (user + protocol capital)
+      const slippage = Number(slippageBps) || 150; // default 1.5% slippage (bps)
       let openTx: string | undefined;
       let tokensBought: bigint | undefined;
       let entryPrice: number | undefined;
 
       try {
-        const swapResult = await swapSolToToken(
-          positionSize, // full leveraged amount
+        // Slippage floor from GeckoTerminal price: expected tokens out, minus slippage
+        const decimals = await erc20Decimals(tokenAddress);
+        const positionEth = Number(positionSize) / 1e18;
+        const expectedTokens = (positionEth * ethPriceUsd) / tokenPriceUsd;
+        const expectedRaw = BigInt(Math.floor(expectedTokens * Math.pow(10, decimals)));
+        const minOut = (expectedRaw * BigInt(10_000 - slippage - 100)) / 10_000n; // extra 1% for pool fee
+
+        const swapResult = await swapEthForToken(
+          protocolAccount,
           tokenAddress,
-          slippage,
-          protocolWallet,
+          positionSize, // full leveraged amount, in wei
+          minOut > 0n ? minOut : 1n,
         );
 
-        openTx = swapResult.txSignature;
-        tokensBought = swapResult.tokensReceived;
+        openTx = swapResult.txHash;
+        tokensBought = swapResult.amountOut;
 
-        // Calculate entry price: SOL spent / tokens received
+        // Entry price: wei spent per raw token unit
         entryPrice = Number(positionSize) / Number(tokensBought);
 
         console.log(
-          `[positions] Jupiter swap executed: ${openTx} | tokens=${tokensBought} | entryPrice=${entryPrice}`,
+          `[positions] Uniswap V3 swap executed: ${openTx} | tokens=${tokensBought} | entryPrice=${entryPrice}`,
         );
       } catch (swapErr) {
-        // Swap failed — refund user's SOL
-        console.error(`[positions] Jupiter swap failed, refunding user:`, swapErr);
+        // Swap failed — refund user's ETH
+        console.error(`[positions] Uniswap V3 swap failed, refunding user:`, swapErr);
         let refundSuccess = false;
         try {
-          await transferSol(protocolWallet, userKeypair.publicKey, userCapital);
+          await transferEth(protocolAccount, userAccount.address, userCapital);
           refundSuccess = true;
         } catch (refundErr) {
           console.error(`[positions] CRITICAL: Refund failed!`, refundErr);
         }
         throw new ValidationError(
           refundSuccess
-            ? `Token swap failed: ${swapErr instanceof Error ? swapErr.message : 'Unknown error'}. Your SOL has been refunded.`
-            : `Token swap failed and automatic refund also failed. Please contact support to recover your ${Number(userCapital) / 1e9} SOL.`,
+            ? `Token swap failed: ${swapErr instanceof Error ? swapErr.message : 'Unknown error'}. Your ETH has been refunded.`
+            : `Token swap failed and automatic refund also failed. Please contact support to recover your ${Number(userCapital) / 1e18} ETH.`,
         );
       }
 
@@ -368,7 +356,7 @@ router.post(
 /**
  * POST /positions/:id/close
  *
- * Close an open position: sell tokens via Jupiter, calculate P&L,
+ * Close an open position: sell tokens via Uniswap V3, calculate P&L,
  * distribute profits, and return capital.
  */
 router.post(
@@ -418,25 +406,50 @@ router.post(
       const userCapitalLamports = position.userCapital;
       const protocolCapitalLamports = position.protocolCapital;
       const tier = position.tier as Tier;
-      const protocolWallet = getProtocolWallet();
+      if (!hasEvmProtocolKey()) {
+        await prisma.position.update({ where: { id: positionId }, data: { status: 'open' } });
+        throw new ValidationError(
+          'Protocol pool wallet is not configured for Robinhood Chain yet — closing is paused.',
+        );
+      }
+      const protocolAccount = getProtocolAccount();
 
-      // 1. Sell tokens via Jupiter
-      const slippage = Number(req.body.slippageBps) || 200; // default 2% for sells
+      // 1. Sell tokens via Uniswap V3
+      const slippage = Number(req.body.slippageBps) || 200; // default 2% for sells (bps)
       let closeTx: string;
-      let solReceived: bigint;
+      let solReceived: bigint; // wei of ETH received (legacy field name)
 
       try {
-        const sellResult = await swapTokenToSol(
+        // Slippage floor: expected ETH out from GeckoTerminal price, minus slippage
+        let minOutWei = 1n;
+        try {
+          const [ethUsd, gtToken, decimals] = await Promise.all([
+            fetchEthUsd(),
+            gtFetchToken(position.token.address),
+            erc20Decimals(position.token.address),
+          ]);
+          if (ethUsd > 0 && gtToken.price > 0) {
+            const tokensHuman = Number(tokensBought) / Math.pow(10, decimals);
+            const expectedEth = (tokensHuman * gtToken.price) / ethUsd;
+            const expectedWei = BigInt(Math.floor(expectedEth * 1e18));
+            const floor = (expectedWei * BigInt(10_000 - slippage - 100)) / 10_000n; // extra 1% pool fee
+            if (floor > 0n) minOutWei = floor;
+          }
+        } catch {
+          // price source down — fall back to minimal floor; swap still reverts on manipulation via pool state
+        }
+
+        const sellResult = await swapTokenForEth(
+          protocolAccount,
           position.token.address,
           tokensBought,
-          slippage,
-          protocolWallet,
+          minOutWei,
         );
-        closeTx = sellResult.txSignature;
-        solReceived = sellResult.solReceived;
+        closeTx = sellResult.txHash;
+        solReceived = sellResult.amountOut;
 
         console.log(
-          `[positions] Sold tokens: ${closeTx} | received=${solReceived} lamports`,
+          `[positions] Sold tokens: ${closeTx} | received=${solReceived} wei`,
         );
       } catch (sellErr) {
         // Revert status back to open so user can retry
@@ -469,7 +482,7 @@ router.post(
       let userLockLamports = 0n;
       if (isProfitable) {
         userCashProfitLamports = (totalProfitLamports * 70n) / 100n;  // 70% cash
-        userLockLamports = totalProfitLamports - userCashProfitLamports; // 30% locked in $FRONT
+        userLockLamports = totalProfitLamports - userCashProfitLamports; // 30% locked in $SCALE
       }
 
       // What goes back to user: their original capital + 70% profit - flat fee
@@ -486,26 +499,26 @@ router.post(
       // Determine status
       const finalStatus = isProfitable ? 'closed_profit' : 'closed_loss';
 
-      // 3. Transfer user's SOL back to their wallet
+      // 3. Transfer user's ETH back to their wallet
       if (userReturnLamports > 0n) {
         try {
-          await transferSol(protocolWallet, wallet, userReturnLamports);
-          console.log(`[positions] Returned ${Number(userReturnLamports) / 1e9} SOL to user ${wallet}`);
+          await transferEth(protocolAccount, wallet, userReturnLamports);
+          console.log(`[positions] Returned ${Number(userReturnLamports) / 1e18} ETH to user ${wallet}`);
         } catch (returnErr) {
           captureError(returnErr instanceof Error ? returnErr : new Error(String(returnErr)), {
             userId: wallet,
             positionId,
-            action: 'sol_return_failed',
+            action: 'eth_return_failed',
             metadata: { amountLamports: userReturnLamports.toString() },
           });
-          console.error(`[positions] CRITICAL: Failed to return SOL to user:`, returnErr);
+          console.error(`[positions] CRITICAL: Failed to return ETH to user:`, returnErr);
           // Revert position status so funds can be recovered on retry
           await prisma.position.update({
             where: { id: positionId },
             data: { status: 'open' },
           });
           throw new ValidationError(
-            'Failed to return SOL to your wallet. Position has been reverted to open. Please try again.',
+            'Failed to return ETH to your wallet. Position has been reverted to open. Please try again.',
           );
         }
       }
@@ -551,18 +564,18 @@ router.post(
         },
       });
 
-      const pnlSol = Number(totalProfitLamports) / 1e9;
+      const pnlSol = Number(totalProfitLamports) / 1e18; // ETH (legacy field name)
       console.log(
-        `[positions] Position #${positionId} closed as ${finalStatus} | P&L: ${pnlSol.toFixed(4)} SOL`,
+        `[positions] Position #${positionId} closed as ${finalStatus} | P&L: ${pnlSol.toFixed(6)} ETH`,
       );
 
       sendSuccess(res, {
         id: closedPosition.id,
         status: closedPosition.status,
-        message: `Position closed. ${isProfitable ? `Profit: +${pnlSol.toFixed(4)} SOL` : `Loss: ${pnlSol.toFixed(4)} SOL`}`,
+        message: `Position closed. ${isProfitable ? `Profit: +${pnlSol.toFixed(6)} ETH` : `Loss: ${pnlSol.toFixed(6)} ETH`}`,
         token: closedPosition.token,
         pnlSol: pnlSol.toFixed(6),
-        userReturn: (Number(userReturnLamports) / 1e9).toFixed(6),
+        userReturn: (Number(userReturnLamports) / 1e18).toFixed(6),
         closeTx,
         closedAt: closedPosition.closedAt,
       });

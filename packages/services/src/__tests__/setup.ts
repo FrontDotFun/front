@@ -58,42 +58,25 @@ vi.mock('@front-protocol/database', () => ({
   },
 }));
 
-// ─── Mock @front-protocol/solana ──────────────
-vi.mock('@front-protocol/solana', () => ({
-  getConnection: vi.fn(() => ({
-    getBalance: vi.fn(() => Promise.resolve(1_000_000_000)),
-    getAccountInfo: vi.fn(() => Promise.resolve(null)),
-    getLatestBlockhash: vi.fn(() =>
-      Promise.resolve({ blockhash: 'mock-blockhash', lastValidBlockHeight: 100 }),
-    ),
-  })),
-  getSolBalance: vi.fn(() => Promise.resolve(1_000_000_000n)),
-  getTokenBalance: vi.fn(() => Promise.resolve(0n)),
-  swapSolToToken: vi.fn(() =>
-    Promise.resolve({ txSignature: 'mock-swap-tx', tokensReceived: 1000n }),
-  ),
-  swapTokenToSol: vi.fn(() =>
-    Promise.resolve({ txSignature: 'mock-sell-tx', solReceived: 2_000_000_000n }),
-  ),
-  getProtocolWallet: vi.fn(() => ({
-    publicKey: { toBase58: () => 'MockProtocolPubkey', equals: () => false },
-    secretKey: new Uint8Array(64),
-  })),
-  loadBotWallet: vi.fn(() => ({
-    publicKey: { toBase58: () => 'MockBotPubkey', equals: () => false },
-    secretKey: new Uint8Array(64),
-  })),
-  transferSol: vi.fn(() => Promise.resolve('mock-transfer-tx')),
-  burnToken: vi.fn(() => Promise.resolve('mock-burn-tx')),
-  generateBotWallet: vi.fn(() => ({
-    publicKey: 'MockNewBotPubkey',
-    encryptedPrivateKey: 'mock-encrypted-key',
-  })),
-  getMultipleTokenPrices: vi.fn(() => Promise.resolve(new Map())),
-  PublicKey: vi.fn((addr: string) => ({
-    toBase58: () => addr,
-    equals: (other: any) => addr === other?.toBase58?.(),
-  })),
+// ─── Mock @front-protocol/evm ──────────────
+vi.mock('@front-protocol/evm', () => ({
+  CONTRACTS: {
+    WETH: '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73',
+    UNIV3_FACTORY: '0x1f7D7550B1B028f7571e69A784071F0205fd2EfA',
+    SWAP_ROUTER_02: '0xCaf681a66D020601342297493863E78C959E5cb2',
+  },
+  NOXA_FEE_TIER: 10_000,
+  DEAD_ADDRESS: '0x000000000000000000000000000000000000dEaD',
+  getProtocolAccount: vi.fn(() => ({ address: '0x2222222222222222222222222222222222222222' })),
+  hasEvmProtocolKey: vi.fn(() => true),
+  getEthBalance: vi.fn(() => Promise.resolve(0n)),
+  transferEth: vi.fn(() => Promise.resolve('0xmock-tx')),
+  erc20Balance: vi.fn(() => Promise.resolve(10n ** 24n)),
+  erc20Decimals: vi.fn(() => Promise.resolve(18)),
+  erc20TotalSupply: vi.fn(() => Promise.resolve(10n ** 27n)),
+  erc20Transfer: vi.fn(() => Promise.resolve('0xmock-burn-tx')),
+  swapEthForToken: vi.fn(() => Promise.resolve({ txHash: '0xmock-buy', amountOut: 1_000_000n })),
+  swapTokenForEth: vi.fn(() => Promise.resolve({ txHash: '0xmock-sell', amountOut: 10n ** 18n })),
 }));
 
 // ─── Mock @pump-fun/pump-sdk ──────────────────

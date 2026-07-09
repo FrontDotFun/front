@@ -1,6 +1,6 @@
-import { type FC, useState, useEffect, useRef } from 'react';
+import { type FC } from 'react';
 import type { TokenInfo } from '../lib/api';
-import { fetchTokenSecurity, type TokenOverview, type TokenSecurity } from '../lib/birdeye';
+import { type TokenOverview } from '../lib/marketdata';
 
 interface TokenMetricsProps {
   token: TokenInfo;
@@ -21,27 +21,20 @@ function formatNum(n: number): string {
 }
 
 /**
- * Rich token metrics bar powered by Birdeye API data.
- * Shows MCAP, LIQ, VOL 24H, TRADES, HOLDERS, BUY/SELL ratio, TOP 10 concentration,
- * security flags (mint authority, freeze authority), and tier badge.
+ * Token metrics bar powered by GeckoTerminal data (via our API).
+ * Shows MCAP, LIQ, VOL 24H, tier badge and 24h change. Solana-era
+ * security flags (mint/freeze authority) don't exist on EVM and the
+ * old holder/trade-count stats were Birdeye-only — dropped rather
+ * than faked.
  */
 export const TokenMetrics: FC<TokenMetricsProps> = ({ token, overview }) => {
-  const [security, setSecurity] = useState<TokenSecurity | null>(null);
-  const lastAddress = useRef('');
-
-  useEffect(() => {
-    if (!token.address || token.address === lastAddress.current) return;
-    lastAddress.current = token.address;
-    fetchTokenSecurity(token.address).then(setSecurity);
-  }, [token.address]);
-
   const tierConfig = {
     bonded: { label: 'BONDED', color: '#00c805', bg: 'rgba(52, 211, 153, 0.08)' },
     rising: { label: 'RISING', color: 'var(--primary-hover)', bg: 'rgba(251, 191, 36, 0.08)' },
     degen: { label: 'DEGEN', color: '#ff4d4d', bg: 'rgba(239, 68, 68, 0.08)' },
   }[token.tier] ?? { label: token.tier.toUpperCase(), color: '#93a89a', bg: 'rgba(128,128,128,0.08)' };
 
-  // Use Birdeye data if available, otherwise fallback to token data
+  // Use live market data if available, otherwise fallback to token data
   const mcap = overview?.marketCap ?? token.marketCapUsd ?? 0;
   const liq = overview?.liquidity ?? token.liquidityUsd ?? 0;
   const vol24h = overview?.volume24h ?? 0;
@@ -51,9 +44,6 @@ export const TokenMetrics: FC<TokenMetricsProps> = ({ token, overview }) => {
   const sell24h = overview?.sell24h ?? 0;
   const buyRatio = buy24h + sell24h > 0 ? (buy24h / (buy24h + sell24h)) * 100 : 50;
   const uniqueWallets = overview?.uniqueWallet24h ?? 0;
-  const top10Pct = security?.top10HolderPercent != null ? security.top10HolderPercent * 100 : null;
-  const hasMintAuth = security?.mintAuthority != null && security.mintAuthority !== '';
-  const hasFreezeAuth = security?.freezeAuthority != null && security.freezeAuthority !== '';
   const priceChange = overview?.priceChange24h ?? token.priceChange24hPct ?? 0;
 
   return (
@@ -126,49 +116,6 @@ export const TokenMetrics: FC<TokenMetricsProps> = ({ token, overview }) => {
           <div className="token-metrics-item">
             <span className="token-metrics-label">WALLETS</span>
             <span className="token-metrics-value">{formatNum(uniqueWallets)}</span>
-          </div>
-          <div className="token-metrics-sep" />
-        </>
-      )}
-
-      {/* TOP 10 */}
-      {top10Pct != null && (
-        <>
-          <div className="token-metrics-item">
-            <span className="token-metrics-label">TOP 10</span>
-            <span className="token-metrics-value" style={{
-              color: top10Pct > 60 ? '#ff4d4d' : top10Pct > 40 ? 'var(--primary-hover)' : '#00c805',
-            }}>
-              {top10Pct.toFixed(1)}%
-            </span>
-          </div>
-          <div className="token-metrics-sep" />
-        </>
-      )}
-
-      {/* SECURITY FLAGS */}
-      {security && (
-        <>
-          <div className="token-metrics-item">
-            <span className="token-metrics-label">MINT</span>
-            <span className="token-metrics-value" style={{
-              color: hasMintAuth ? '#ff4d4d' : '#00c805',
-              fontSize: 9,
-              fontWeight: 700,
-            }}>
-              {hasMintAuth ? 'ENABLED' : 'REVOKED'}
-            </span>
-          </div>
-          <div className="token-metrics-sep" />
-          <div className="token-metrics-item">
-            <span className="token-metrics-label">FREEZE</span>
-            <span className="token-metrics-value" style={{
-              color: hasFreezeAuth ? '#ff4d4d' : '#00c805',
-              fontSize: 9,
-              fontWeight: 700,
-            }}>
-              {hasFreezeAuth ? 'ENABLED' : 'REVOKED'}
-            </span>
           </div>
           <div className="token-metrics-sep" />
         </>

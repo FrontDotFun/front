@@ -45,17 +45,17 @@ export const Stats: FC = () => {
             Capital Pool {stats?.poolSourceOnchain && <span style={{ color: 'var(--green)' }}>· on-chain</span>}
           </div>
           <div className="stat-card-value" style={{ color: 'var(--primary)' }}>
-            {formatNumber(poolSizeSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
+            {formatNumber(poolSizeSol)} <span style={{ fontSize: '0.79rem' }}>ETH</span>
           </div>
           <div className="stat-card-sub">
             {stats?.poolWalletAddress ? (
               <a
                 className="link-dim"
-                href={`https://solscan.io/account/${stats.poolWalletAddress}`}
+                href={`https://robinhoodchain.blockscout.com/address/${stats.poolWalletAddress}`}
                 target="_blank"
                 rel="noreferrer"
               >
-                Live wallet balance — verify on Solscan ↗
+                Live wallet balance — verify on Blockscout ↗
               </a>
             ) : (
               'Available for lending'
@@ -80,7 +80,7 @@ export const Stats: FC = () => {
         <div className="stat-card">
           <div className="stat-card-label">$SCALE Burned</div>
           <div className="stat-card-value" style={{ color: 'var(--yellow)' }}>
-            {formatNumber(totalBurnedSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
+            {formatNumber(totalBurnedSol)} <span style={{ fontSize: '0.79rem' }}>ETH</span>
           </div>
           <div className="stat-card-sub">20% of fee revenue</div>
         </div>
@@ -88,7 +88,7 @@ export const Stats: FC = () => {
         <div className="stat-card">
           <div className="stat-card-label">Profit Locks</div>
           <div className="stat-card-value">
-            {formatNumber(totalLockedSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
+            {formatNumber(totalLockedSol)} <span style={{ fontSize: '0.79rem' }}>ETH</span>
           </div>
           <div className="stat-card-sub">30% of trade profits auto-locked 7d</div>
         </div>
@@ -114,7 +114,7 @@ export const Stats: FC = () => {
         <div className="stat-card">
           <div className="stat-card-label">Creator Payouts</div>
           <div className="stat-card-value">
-            {formatNumber(totalCreatorPayoutsSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
+            {formatNumber(totalCreatorPayoutsSol)} <span style={{ fontSize: '0.79rem' }}>ETH</span>
           </div>
           <div className="stat-card-sub">30% of fees, claimed by creators</div>
         </div>
@@ -130,7 +130,7 @@ export const Stats: FC = () => {
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: '0.86rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="text-secondary">User gets (SOL)</span>
+                <span className="text-secondary">User gets (ETH)</span>
                 <span className="mono text-green">70%</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>

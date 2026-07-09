@@ -1,23 +1,23 @@
-const SOL_DECIMALS = 9;
+const ETH_DECIMALS = 18;
 
 /**
- * Format lamports as SOL.
- * @example formatSol(1_500_000_000n) => "1.500"
+ * Format wei as ETH. (Name kept from the Solana era — call sites
+ * treat it as "format native-unit amount".)
+ * @example formatSol(1_500_000_000_000_000_000n) => "1.500"
  */
 export function formatSol(
   lamports: bigint | string | number,
-  decimals = 3,
+  decimals = 4,
 ): string {
   try {
     // Handle null/undefined/empty
-    if (lamports == null || lamports === '') return '0.000';
-    // If already a normal number (not lamports), just format
+    if (lamports == null || lamports === '') return '0.0000';
     const num = typeof lamports === 'string' ? Number(lamports) : Number(lamports);
-    if (isNaN(num)) return '0.000';
-    const value = num / 10 ** SOL_DECIMALS;
+    if (isNaN(num)) return '0.0000';
+    const value = num / 10 ** ETH_DECIMALS;
     return value.toFixed(decimals);
   } catch {
-    return '0.000';
+    return '0.0000';
   }
 }
 
@@ -75,8 +75,8 @@ export function formatPercentText(pct: number): { text: string; className: strin
 }
 
 /**
- * Truncate a Solana address for display.
- * @example formatAddress("7xKs...3fD") => "7xKs...3fD"
+ * Truncate an address for display.
+ * @example formatAddress("0x7xKs...3fD") => "0x7x...3fD"
  */
 export function formatAddress(addr: string, chars = 4): string {
   if (addr.length <= chars * 2 + 3) return addr;
@@ -156,7 +156,7 @@ export function formatCountdown(ms: number): string {
 }
 
 /**
- * Format SOL price (no trailing "SOL")
+ * Format an ETH-denominated price (no trailing unit).
  * @example formatSolPrice(0.0000234) => "0.0000234"
  */
 export function formatSolPrice(sol: number | undefined | null): string {
@@ -177,15 +177,16 @@ export function pnlColor(value: number | undefined | null): string {
 }
 
 /**
- * Get solscan link for a transaction.
+ * Blockscout (Robinhood Chain) link for a transaction.
+ * (Names kept from the Solana era so call sites don't churn.)
  */
 export function solscanTxUrl(sig: string): string {
-  return `https://solscan.io/tx/${sig}`;
+  return `https://robinhoodchain.blockscout.com/tx/${sig}`;
 }
 
 /**
- * Get solscan link for an address.
+ * Blockscout (Robinhood Chain) link for an address.
  */
 export function solscanAddressUrl(addr: string): string {
-  return `https://solscan.io/account/${addr}`;
+  return `https://robinhoodchain.blockscout.com/address/${addr}`;
 }

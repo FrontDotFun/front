@@ -53,7 +53,7 @@ export const TradeHistory: FC<TradeHistoryProps> = ({ trades, loading }) => {
         <tbody>
           {trades.map((trade) => {
             const st = statusLabel(trade.status);
-            const pnlSol = trade.pnlSol ? Number(trade.pnlSol) / 1e9 : null;
+            const pnlSol = trade.pnlSol ? Number(trade.pnlSol) / 1e18 : null;
             const pnlColor = pnlSol != null && pnlSol > 0 ? 'text-green' : pnlSol != null && pnlSol < 0 ? 'text-red' : 'text-secondary';
             return (
               <tr key={trade.id}>
@@ -61,7 +61,7 @@ export const TradeHistory: FC<TradeHistoryProps> = ({ trades, loading }) => {
                 <td className="mono">{trade.leverage}x</td>
                 <td className="mono">{formatSol(trade.userCapital, 2)}</td>
                 <td className={pnlColor} style={{ fontWeight: 600 }}>
-                  {pnlSol != null ? `${pnlSol >= 0 ? '+' : ''}${pnlSol.toFixed(4)} SOL` : '—'}
+                  {pnlSol != null ? `${pnlSol >= 0 ? '+' : ''}${pnlSol.toFixed(4)} ETH` : '—'}
                 </td>
                 <td>
                   <span className={st.color} style={{ fontSize: '0.78rem', fontWeight: 600 }}>

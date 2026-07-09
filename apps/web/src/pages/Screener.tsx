@@ -4,7 +4,7 @@ import * as api from '../lib/api';
 import { blip } from '../lib/sfx';
 
 /* ═══════════════════════════════════════════════════════════════
-   SCREENER — live Robinhood Chain market wall. Real Birdeye trending data
+   SCREENER — live Robinhood Chain market wall. Real GeckoTerminal trending data
    through the protocol proxy, refreshed every 30s. Keyboard-first:
    j/k or ↑/↓ to move, enter to open the trade terminal, s to
    cycle sort. LISTED = tradeable with leverage on SCALE.

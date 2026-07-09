@@ -6,7 +6,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'node:crypto';
 import { prisma } from '@front-protocol/database';
-import { generateBotWallet } from '@front-protocol/solana';
+import { generateCustodialWallet, loadCustodialWallet, getEthBalance, transferEth } from '@front-protocol/evm';
 import { issueToken, verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { sendSuccess, sendError } from '../lib/response';
 import { ValidationError, AuthError } from '../lib/errors';
@@ -26,7 +26,7 @@ function isValidEmail(email: string): boolean {
  * POST /auth/register
  *
  * Create a new custodial account with email + password.
- * Generates a Solana wallet address and encrypts the private key.
+ * Generates a Robinhood Chain (EVM) wallet and encrypts the private key.
  *
  * Body: { email: string, password: string }
  * Returns: { token, user: { id, email, walletAddress } }
@@ -64,8 +64,8 @@ router.post('/register', authLimiter, async (req, res) => {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Generate real Solana wallet
-    const { publicKey: walletAddress, encryptedPrivateKey: encryptedKey } = generateBotWallet();
+    // Generate a custodial Robinhood Chain (EVM) wallet
+    const { address: walletAddress, encryptedPrivateKey: encryptedKey } = generateCustodialWallet();
 
     // Create user
     const user = await prisma.user.create({
@@ -115,7 +115,7 @@ router.post('/login', authLimiter, async (req, res) => {
     }
 
     // Find user by email
-    const user = await prisma.user.findUnique({ where: { email } });
+    let user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       throw new AuthError('Invalid email or password');
     }
@@ -124,6 +124,22 @@ router.post('/login', authLimiter, async (req, res) => {
     const passwordMatch = await bcrypt.compare(password, user.passwordHash);
     if (!passwordMatch) {
       throw new AuthError('Invalid email or password');
+    }
+
+    // Robinhood Chain migration: accounts created in the Solana era get
+    // a fresh EVM wallet on first login; the old wallet + key move to
+    // legacy columns so any funds stay recoverable.
+    if (!user.walletAddress.startsWith('0x')) {
+      const fresh = generateCustodialWallet();
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          legacyWalletAddress: user.walletAddress,
+          legacyEncryptedKey: user.encryptedKey,
+          walletAddress: fresh.address,
+          encryptedKey: fresh.encryptedPrivateKey,
+        },
+      });
     }
 
     // Issue JWT
@@ -192,10 +208,9 @@ router.get('/wallet', verifyWalletSignature, async (req, res) => {
       throw new AuthError('User not found');
     }
 
-    // Fetch real balance from on-chain
-    const { getSolBalance } = await import('@front-protocol/solana');
-    const balanceLamports = await getSolBalance(user.walletAddress);
-    const balanceSol = (Number(balanceLamports) / 1e9).toFixed(6);
+    // Fetch real balance from Robinhood Chain
+    const balanceLamports = await getEthBalance(user.walletAddress);
+    const balanceSol = (Number(balanceLamports) / 1e18).toFixed(6);
 
     sendSuccess(res, {
       walletAddress: user.walletAddress,
@@ -210,7 +225,7 @@ router.get('/wallet', verifyWalletSignature, async (req, res) => {
 /**
  * POST /auth/withdraw
  *
- * Withdraw SOL from user's custodial wallet to an external Solana address.
+ * Withdraw ETH from the user's custodial wallet to an external Robinhood Chain address.
  * Users can only withdraw SOL from their own wallet — never protocol funds.
  */
 router.post('/withdraw', verifyWalletSignature, async (req, res) => {
@@ -226,14 +241,9 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
       ]);
     }
 
-    // Validate Solana address format (base58, 32-44 chars)
-    if (
-      typeof destinationAddress !== 'string' ||
-      destinationAddress.length < 32 ||
-      destinationAddress.length > 44 ||
-      !/^[1-9A-HJ-NP-Za-km-z]+$/.test(destinationAddress)
-    ) {
-      throw new ValidationError('Invalid Solana destination address');
+    // Validate Robinhood Chain (EVM) address format
+    if (typeof destinationAddress !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(destinationAddress)) {
+      throw new ValidationError('Invalid destination address — expected a Robinhood Chain (0x…) address');
     }
 
     const user = await prisma.user.findUnique({
@@ -255,9 +265,8 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
       );
     }
 
-    const { loadBotWallet, getSolBalance, transferSol, getProtocolWallet } = await import('@front-protocol/solana');
 
-    const userKeypair = loadBotWallet(user.encryptedKey);
+    const userAccount = loadCustodialWallet(user.encryptedKey);
     let amount: bigint;
     try {
       amount = BigInt(amountLamports);
@@ -265,28 +274,23 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
       throw new ValidationError('Invalid amount — must be a numeric string');
     }
 
-    // Check balance (reserve 5000 lamports for tx fee)
-    const balance = await getSolBalance(user.walletAddress);
-    if (balance < amount + 5000n) {
+    // Check balance (reserve a gas buffer — L2 gas is cheap but not free)
+    const GAS_BUFFER_WEI = 50_000_000_000_000n; // 0.00005 ETH
+    const balance = await getEthBalance(user.walletAddress);
+    if (balance < amount + GAS_BUFFER_WEI) {
       throw new AuthError(
-        `Insufficient balance. You have ${(Number(balance) / 1e9).toFixed(6)} SOL but tried to withdraw ${(Number(amount) / 1e9).toFixed(6)} SOL`,
+        `Insufficient balance. You have ${(Number(balance) / 1e18).toFixed(6)} ETH but tried to withdraw ${(Number(amount) / 1e18).toFixed(6)} ETH (plus gas)`,
       );
     }
 
-    // Ensure user is NOT trying to withdraw from protocol wallet
-    const protocolWallet = getProtocolWallet();
-    if (userKeypair.publicKey.equals(protocolWallet.publicKey)) {
-      throw new AuthError('Cannot withdraw from protocol wallet');
-    }
+    // Execute transfer on Robinhood Chain
+    const signature = await transferEth(userAccount, destinationAddress, amount);
 
-    // Execute transfer
-    const signature = await transferSol(userKeypair, destinationAddress, amount);
-
-    console.log(`[auth] Withdraw ${Number(amount) / 1e9} SOL from ${user.walletAddress} to ${destinationAddress}: ${signature}`);
+    console.log(`[auth] Withdraw ${Number(amount) / 1e18} ETH from ${user.walletAddress} to ${destinationAddress}: ${signature}`);
 
     sendSuccess(res, {
       txSignature: signature,
-      amountSol: (Number(amount) / 1e9).toFixed(6),
+      amountSol: (Number(amount) / 1e18).toFixed(6),
       from: user.walletAddress,
       to: destinationAddress,
     });
@@ -428,7 +432,7 @@ router.get('/google/callback', async (req, res) => {
       }
 
       // New user — generate Solana wallet
-      const { publicKey: walletAddress, encryptedPrivateKey: encryptedKey } = generateBotWallet();
+      const { address: walletAddress, encryptedPrivateKey: encryptedKey } = generateCustodialWallet();
 
       // Create with a random password hash (they'll use Google to sign in)
       const randomPass = await bcrypt.hash(crypto.randomUUID(), 12);

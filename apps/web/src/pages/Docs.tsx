@@ -30,7 +30,7 @@ export const Docs: FC = () => {
         <h2>Overview</h2>
         <p>
           Scale Protocol enables leveraged spot trading on Noxa and Noxa-listed memecoins on Robinhood Chain.
-          Traders deposit SOL as collateral, and the protocol supplies the remaining capital from a shared lending pool
+          Traders deposit ETH as collateral, and the protocol supplies the remaining capital from a shared lending pool
           to open a larger position. Trades are executed as real spot buys on-chain via Uniswap V3 — not synthetic perpetuals.
         </p>
         <p>
@@ -62,26 +62,26 @@ export const Docs: FC = () => {
 
         <h3>2. Configure Your Position</h3>
         <p>
-          Set your collateral amount (SOL you put at risk) and leverage multiplier. The available leverage depends on
+          Set your collateral amount (ETH you put at risk) and leverage multiplier. The available leverage depends on
           the token's risk tier — bonded tokens allow up to 7x, rising tokens up to 5x, and degen-tier tokens up to 3x.
         </p>
         <div className="docs-example">
           <div className="docs-example-title">Example</div>
           <p>
-            You deposit <span className="mono">0.5 SOL</span> at <span className="mono">5x</span> leverage.
-            The protocol supplies <span className="mono">2.0 SOL</span> from the lending pool.
-            A real spot buy of <span className="mono">2.5 SOL</span> worth of tokens is executed on-chain via Uniswap.
-            You pay a flat fee of <span className="mono">0.5%</span> (0.0125 SOL) on the total position size.
+            You deposit <span className="mono">0.5 ETH</span> at <span className="mono">5x</span> leverage.
+            The protocol supplies <span className="mono">2.0 ETH</span> from the lending pool.
+            A real spot buy of <span className="mono">2.5 ETH</span> worth of tokens is executed on-chain via Uniswap V3.
+            You pay a flat fee of <span className="mono">0.5%</span> (0.0125 ETH) on the total position size.
           </p>
         </div>
 
         <h3>3. Profit Scenario</h3>
         <p>
           If the token price increases, you can close the position manually at any time or let it auto-close after 24 hours.
-          The tokens are sold back to SOL via Uniswap. The protocol recovers its capital (2.0 SOL) first. Of the remaining profit:
+          The tokens are sold back to ETH via Uniswap V3. The protocol recovers its capital (2.0 ETH) first. Of the remaining profit:
         </p>
         <ul className="docs-list">
-          <li><strong>70%</strong> is returned to you as SOL immediately</li>
+          <li><strong>70%</strong> is returned to you as ETH immediately</li>
           <li><strong>30%</strong> is used to buy $SCALE tokens, which are locked for 7 days and then claimable on the Locks page</li>
         </ul>
 
@@ -341,7 +341,7 @@ export const Docs: FC = () => {
 
         <p>
           Profit from successful trades is split separately:
-          70% goes to the trader as SOL, and 30% auto-buys $SCALE (locked 7 days).
+          70% goes to the trader as ETH, and 30% auto-buys $SCALE (locked 7 days).
         </p>
       </section>
     </div>

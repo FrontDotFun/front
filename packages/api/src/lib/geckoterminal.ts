@@ -48,6 +48,21 @@ const num = (v: unknown): number => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/** ETH/USD via the WETH token price on Robinhood Chain (60s cache, stale-if-error). */
+let ethUsdCache: { price: number; at: number } | null = null;
+export async function fetchEthUsd(): Promise<number> {
+  if (ethUsdCache && Date.now() - ethUsdCache.at < 60_000) return ethUsdCache.price;
+  try {
+    const json = await gtFetch(`/simple/networks/${GT_NETWORK}/token_price/${WETH_ROBINHOOD}`);
+    const prices = json?.data?.attributes?.token_prices ?? {};
+    const price = num(prices[WETH_ROBINHOOD.toLowerCase()] ?? prices[WETH_ROBINHOOD]);
+    if (price > 0) ethUsdCache = { price, at: Date.now() };
+  } catch {
+    // fall through to stale value
+  }
+  return ethUsdCache?.price ?? 0;
+}
+
 /** Trending pools on Robinhood Chain → one MarketToken per base token. */
 export async function fetchTrending(): Promise<MarketToken[]> {
   const json = await gtFetch(`/networks/${GT_NETWORK}/trending_pools?include=base_token&page=1`);
@@ -105,7 +120,7 @@ export async function fetchToken(address: string): Promise<MarketToken & { suppl
 
 /** Resolve a token's highest-liquidity pool (cached) for OHLCV lookups. */
 const poolCache = new Map<string, { pool: string; at: number }>();
-async function topPoolFor(address: string): Promise<string | null> {
+export async function topPoolFor(address: string): Promise<string | null> {
   const cached = poolCache.get(address);
   if (cached && Date.now() - cached.at < 300_000) return cached.pool;
   const json = await gtFetch(`/networks/${GT_NETWORK}/tokens/${address}/pools?page=1`);
@@ -150,6 +165,46 @@ export async function fetchOHLCV(
     .map((c) => ({ timestamp: c[0], open: c[1], high: c[2], low: c[3], close: c[4], volume: c[5] }))
     .filter((c) => c.timestamp > 0 && c.close > 0)
     .sort((a, b) => a.timestamp - b.timestamp);
+}
+
+
+export interface PoolTrade {
+  txHash: string;
+  blockUnixTime: number;
+  side: 'buy' | 'sell';
+  tokenAmount: number;
+  priceUsd: number;
+  volumeUsd: number;
+  owner: string;
+}
+
+/** Recent trades for a token's top pool — real swaps from GeckoTerminal. */
+export async function fetchTrades(address: string, limit = 30): Promise<PoolTrade[]> {
+  const pool = await topPoolFor(address);
+  if (!pool) return [];
+  const json = await gtFetch(`/networks/${GT_NETWORK}/pools/${pool}/trades`);
+  const addr = address.toLowerCase();
+  return (json.data ?? [])
+    .map((t: any) => {
+      const a = t.attributes ?? {};
+      const isBuy = a.kind === 'buy';
+      // amount + price: whichever side of the swap is OUR token —
+      // the other side is WETH and would show the ETH price instead
+      const ourTokenIsTo = (a.to_token_address ?? '').toLowerCase() === addr;
+      const tokenAmount = ourTokenIsTo ? num(a.to_token_amount) : num(a.from_token_amount);
+      const priceUsd = ourTokenIsTo ? num(a.price_to_in_usd) : num(a.price_from_in_usd);
+      return {
+        txHash: a.tx_hash ?? '',
+        blockUnixTime: Math.floor(new Date(a.block_timestamp ?? 0).getTime() / 1000),
+        side: (isBuy ? 'buy' : 'sell') as 'buy' | 'sell',
+        tokenAmount,
+        priceUsd,
+        volumeUsd: num(a.volume_in_usd),
+        owner: a.tx_from_address ?? '',
+      };
+    })
+    .filter((t: PoolTrade) => t.txHash && t.blockUnixTime > 0)
+    .slice(0, limit);
 }
 
 /**

@@ -57,21 +57,34 @@ vi.mock('@front-protocol/database', () => ({
   },
 }));
 
-// ─── Mock @front-protocol/solana ──────────────
-vi.mock('@front-protocol/solana', () => ({
-  getConnection: vi.fn(() => ({})),
-  getSolBalance: vi.fn(() => Promise.resolve(0)),
-  getTokenBalance: vi.fn(() => Promise.resolve(0)),
-  sendTransaction: vi.fn(() => Promise.resolve('mock-tx-hash')),
-  confirmTransaction: vi.fn(() => Promise.resolve(true)),
-  createTransferInstruction: vi.fn(),
-  getTokenAccounts: vi.fn(() => Promise.resolve([])),
-  generateBotWallet: vi.fn(() => ({ publicKey: 'mock-pub', secretKey: new Uint8Array(64) })),
-  swapSolToToken: vi.fn(() => Promise.resolve('mock-tx')),
-  swapTokenToSol: vi.fn(() => Promise.resolve('mock-tx')),
-  getProtocolWallet: vi.fn(() => ({ publicKey: 'mock-protocol-pub' })),
-  loadBotWallet: vi.fn(() => ({ publicKey: 'mock-bot-pub' })),
-  transferSol: vi.fn(() => Promise.resolve('mock-tx')),
+// ─── Mock @front-protocol/evm ──────────────
+vi.mock('@front-protocol/evm', () => ({
+  robinhoodChain: { id: 4663 },
+  CONTRACTS: {
+    WETH: '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73',
+    UNIV3_FACTORY: '0x1f7D7550B1B028f7571e69A784071F0205fd2EfA',
+    SWAP_ROUTER_02: '0xCaf681a66D020601342297493863E78C959E5cb2',
+  },
+  NOXA_FEE_TIER: 10_000,
+  explorerTxUrl: vi.fn((h: string) => `https://robinhoodchain.blockscout.com/tx/${h}`),
+  explorerAddressUrl: vi.fn((a: string) => `https://robinhoodchain.blockscout.com/address/${a}`),
+  getPublicClient: vi.fn(() => ({})),
+  generateCustodialWallet: vi.fn(() => ({
+    address: '0x1111111111111111111111111111111111111111',
+    encryptedPrivateKey: 'iv:tag:cipher',
+  })),
+  loadCustodialWallet: vi.fn(() => ({ address: '0x1111111111111111111111111111111111111111' })),
+  getProtocolAccount: vi.fn(() => ({ address: '0x2222222222222222222222222222222222222222' })),
+  hasEvmProtocolKey: vi.fn(() => false),
+  getEthBalance: vi.fn(() => Promise.resolve(0n)),
+  transferEth: vi.fn(() => Promise.resolve('0xmock-tx')),
+  erc20Balance: vi.fn(() => Promise.resolve(0n)),
+  erc20Decimals: vi.fn(() => Promise.resolve(18)),
+  erc20TotalSupply: vi.fn(() => Promise.resolve(0n)),
+  swapEthForToken: vi.fn(() => Promise.resolve({ txHash: '0xmock-tx', amountOut: 0n })),
+  swapTokenForEth: vi.fn(() => Promise.resolve({ txHash: '0xmock-tx', amountOut: 0n })),
+  encryptPrivateKey: vi.fn(() => 'iv:tag:cipher'),
+  decryptPrivateKey: vi.fn(() => '0x' + '11'.repeat(32)),
 }));
 
 // ─── Mock @front-protocol/services ─────────────

@@ -14,12 +14,12 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
   const [generating, setGenerating] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
-  const pnlSol = trade.pnlSol ? Number(trade.pnlSol) / 1e9 : 0;
+  const pnlSol = trade.pnlSol ? Number(trade.pnlSol) / 1e18 : 0;
   const isProfit = pnlSol >= 0;
   const entryPrice = trade.entryPrice ? Number(trade.entryPrice) : 0;
   const exitPrice = trade.exitPrice ? Number(trade.exitPrice) : 0;
   const roi = entryPrice > 0 ? ((exitPrice - entryPrice) / entryPrice) * 100 * trade.leverage : 0;
-  const capitalSol = Number(trade.userCapital || 0) / 1e9;
+  const capitalSol = Number(trade.userCapital || 0) / 1e18;
 
   const generateCard = useCallback(() => {
     const canvas = canvasRef.current;
@@ -102,11 +102,11 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     ctx.fillStyle = isProfit ? '#00c805' : '#ff4d4d';
     ctx.fillText(roiStr, 28, 168);
 
-    // PnL in SOL
+    // PnL in ETH
     ctx.font = '18px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#93a89a';
     ctx.fillText(
-      `${pnlSol >= 0 ? '+' : ''}${pnlSol.toFixed(4)} SOL`,
+      `${pnlSol >= 0 ? '+' : ''}${pnlSol.toFixed(4)} ETH`,
       28,
       198,
     );
@@ -122,7 +122,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
 
     ctx.font = '14px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#a6bcae';
-    ctx.fillText(`${capitalSol.toFixed(3)} SOL`, 28, statY + 20);
+    ctx.fillText(`${capitalSol.toFixed(4)} ETH`, 28, statY + 20);
     ctx.fillText(`${entryPrice.toFixed(8)}`, 160, statY + 20);
     ctx.fillText(`${exitPrice.toFixed(8)}`, 292, statY + 20);
     ctx.fillText((trade.tier || 'degen').toUpperCase(), 424, statY + 20);
@@ -138,7 +138,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     // Footer
     ctx.font = '10px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#2a3d2e';
-    ctx.fillText('Leveraged memecoin trading on Solana', 28, 308);
+    ctx.fillText('Leveraged memecoin trading on Robinhood Chain', 28, 308);
     ctx.textAlign = 'right';
     ctx.fillText(new Date().toISOString().split('T')[0], W - 28, 308);
     ctx.textAlign = 'left';

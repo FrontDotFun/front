@@ -17,7 +17,7 @@
     "@front-protocol/core": "workspace:*",
     "@front-protocol/database": "workspace:*",
     "@front-protocol/services": "workspace:*",
-    "@front-protocol/solana": "workspace:*",
+    "@front-protocol/evm": "workspace:*",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

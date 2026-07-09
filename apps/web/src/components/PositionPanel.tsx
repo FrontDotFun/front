@@ -41,7 +41,8 @@ export const PositionPanel: FC<PositionPanelProps> = ({ token, onOpen, isOpening
 
   const handleSubmit = async () => {
     if (amountNum <= 0) return;
-    const lamports = Math.floor(amountNum * 1e9).toString();
+    // micro-ETH precision then scale to wei — avoids float drift past 2^53
+    const lamports = (BigInt(Math.round(amountNum * 1e6)) * 1_000_000_000_000n).toString();
     await onOpen(token.address, lamports, leverage);
     setAmount('');
   };
@@ -80,7 +81,7 @@ export const PositionPanel: FC<PositionPanelProps> = ({ token, onOpen, isOpening
           >
             Max
           </button>
-          <span className="position-panel-input-suffix">SOL</span>
+          <span className="position-panel-input-suffix">ETH</span>
         </div>
       </div>
 
@@ -106,11 +107,11 @@ export const PositionPanel: FC<PositionPanelProps> = ({ token, onOpen, isOpening
         <div className="position-preview">
           <div className="position-preview-row">
             <span className="position-preview-row-label">Position Size</span>
-            <span className="position-preview-row-value">{positionSize.toFixed(3)} SOL</span>
+            <span className="position-preview-row-value">{positionSize.toFixed(4)} ETH</span>
           </div>
           <div className="position-preview-row">
             <span className="position-preview-row-label">Fee (1%)</span>
-            <span className="position-preview-row-value">{fee.toFixed(4)} SOL</span>
+            <span className="position-preview-row-value">{fee.toFixed(5)} ETH</span>
           </div>
           <div className="position-preview-row">
             <span className="position-preview-row-label">Exit Threshold</span>

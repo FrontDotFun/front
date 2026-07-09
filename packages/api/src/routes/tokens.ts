@@ -1,26 +1,22 @@
 import { Router } from 'express';
 import { prisma } from '@front-protocol/database';
 import { getTierConfig, determineTier, type Tier } from '@front-protocol/core';
-import { getConnection, PublicKey } from '@front-protocol/solana';
-import { createRequire } from 'node:module';
-
-// pump-sdk is CJS-only — use createRequire for ESM compatibility
-let feeSharingConfigPda: ((mint: InstanceType<typeof PublicKey>) => InstanceType<typeof PublicKey>) | null = null;
-let PumpSdk: (new () => { decodeSharingConfig: (info: any) => any }) | null = null;
-try {
-  const require = createRequire(import.meta.url);
-  const pumpSdk = require('@pump-fun/pump-sdk');
-  feeSharingConfigPda = pumpSdk.feeSharingConfigPda;
-  PumpSdk = pumpSdk.PumpSdk;
-} catch {
-  console.warn('[tokens] @pump-fun/pump-sdk not available — on-chain fee verification disabled');
-}
+import { erc20TotalSupply } from '@front-protocol/evm';
+import { fetchToken as gtFetchToken } from '../lib/geckoterminal';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { publicLimiter } from '../middleware/rateLimit';
 import { sendSuccess, sendError, sendPaginated } from '../lib/response';
 import { ValidationError, NotFoundError } from '../lib/errors';
 
-const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || 'DAcjYqJzSHXqYfGzgEwfd2HVcxYPXemnLXc27fHwaLq4';
+const PROTOCOL_WALLET = (process.env.PROTOCOL_WALLET || '').trim();
+
+/** Tokens whose Noxa creator-fee redirect to the protocol wallet has been
+ *  verified manually (comma-separated env). Noxa doesn't expose a public
+ *  fee-config read yet, so we don't pretend to verify it on-chain. */
+const VERIFIED_FEE_TOKENS = new Set(
+  (process.env.SCALE_VERIFIED_TOKENS ?? '')
+    .split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
+);
 
 const router = Router();
 
@@ -286,9 +282,10 @@ router.get('/:address', publicLimiter, async (req, res) => {
 /**
  * POST /tokens/list
  *
- * A creator lists their Pump.fun token on Ape Harder.
- * Auto-detects tier from market cap, verifies creator fee redirect on-chain,
- * fetches metadata from DexScreener.
+ * A creator lists their Noxa-launched token on SCALE.
+ * Verifies the token is a real ERC-20 on Robinhood Chain with a live
+ * Uniswap V3 pool, fetches metadata from GeckoTerminal, and gates on
+ * the Noxa creator-fee redirect (manual verification for now).
  */
 router.post('/list', async (req, res) => {
   try {
@@ -298,9 +295,9 @@ router.post('/list', async (req, res) => {
       throw new ValidationError('tokenAddress is required');
     }
 
-    // Validate token address format
-    if (typeof tokenAddress !== 'string' || tokenAddress.length < 32 || tokenAddress.length > 44) {
-      throw new ValidationError('Invalid token address format');
+    // Validate token address format (Robinhood Chain — EVM)
+    if (typeof tokenAddress !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(tokenAddress)) {
+      throw new ValidationError('Invalid token address — must be a Robinhood Chain (0x…) address');
     }
 
     // Check if token already listed
@@ -311,91 +308,34 @@ router.post('/list', async (req, res) => {
       throw new ValidationError('Token is already listed');
     }
 
+    // ── On-chain existence check ──
+    // The token must be a real ERC-20 on Robinhood Chain.
+    try {
+      await erc20TotalSupply(tokenAddress);
+    } catch {
+      throw new ValidationError(
+        'Token contract not found on Robinhood Chain. Launch it via Noxa (fun.noxa.fi/robinhood/launch) first.',
+      );
+    }
+
     // ── Fee verification ──
-    // Skip verification for the protocol's own $FRONT token
-    const FRONT_MINT = process.env.FRONT_TOKEN_MINT || '';
-    let feeVerified = tokenAddress === FRONT_MINT && FRONT_MINT.length > 0;
-    let feeCheckError: string | null = null;
-    let isPumpToken = feeVerified; // $FRONT is a pump.fun token
-
-    if (!feeVerified) {
-      // Verify the token's creator fees are redirected to the protocol wallet.
-      try {
-        const pumpRes = await fetch(`https://frontend-api-v3.pump.fun/coins/${tokenAddress}`);
-        if (pumpRes.ok) {
-          isPumpToken = true;
-          const pumpData = await pumpRes.json() as any;
-
-          // Method 1: Check fee_recipient field (if pump.fun exposes it)
-          if (
-            pumpData.fee_recipient === PROTOCOL_WALLET ||
-            pumpData.creator_fee_wallet === PROTOCOL_WALLET
-          ) {
-            feeVerified = true;
-          }
-
-          // Method 2: Check on-chain sharing config via Pump SDK
-          if (!feeVerified && feeSharingConfigPda && PumpSdk) {
-            try {
-              const connection = getConnection();
-              const mintPubkey = new PublicKey(tokenAddress);
-              const sharingPda = feeSharingConfigPda(mintPubkey);
-              const sharingInfo = await connection.getAccountInfo(sharingPda);
-
-              if (sharingInfo) {
-                const pumpSdk = new PumpSdk();
-                const config = pumpSdk.decodeSharingConfig(sharingInfo);
-                const shareholders = (config as any).shareholders || (config as any).shares || [];
-                for (const sh of shareholders) {
-                  const addr = sh.address?.toBase58?.() || sh.wallet?.toBase58?.() || String(sh.address || sh.wallet || '');
-                  if (addr === PROTOCOL_WALLET) {
-                    feeVerified = true;
-                    break;
-                  }
-                }
-              }
-            } catch {
-              // On-chain check failed — continue to next method
-            }
-          }
-
-          // Method 3: Check if the token creator matches the protocol wallet
-          if (!feeVerified && pumpData.creator === PROTOCOL_WALLET) {
-            feeVerified = true;
-            console.log(`[tokens] Protocol wallet is token creator — auto-verified`);
-          }
-
-          if (!feeVerified) {
-            feeCheckError =
-              'Could not verify fee redirect. Make sure your pump.fun creator rewards ' +
-              'are redirected to: ' + PROTOCOL_WALLET +
-              '\n\nIf you just set it up, wait a minute and try again.';
-          }
-        } else if (pumpRes.status === 404) {
-          feeCheckError = 'Token not found on pump.fun. Only pump.fun tokens are supported.';
-        } else {
-          feeCheckError = 'Could not verify — pump.fun API error. Try again later.';
-        }
-      } catch {
-        feeCheckError = 'Could not verify fee redirect — network error. Try again later.';
-      }
-    }
-
-    if (!isPumpToken && !feeVerified) {
-      throw new ValidationError(
-        feeCheckError || 'Only pump.fun tokens are supported.'
-      );
-    }
+    // Skip verification for the protocol's own $SCALE token.
+    const SCALE_MINT = (process.env.FRONT_TOKEN_MINT || '').toLowerCase();
+    const addrLower = tokenAddress.toLowerCase();
+    let feeVerified =
+      (addrLower === SCALE_MINT && SCALE_MINT.length > 0) ||
+      VERIFIED_FEE_TOKENS.has(addrLower);
 
     if (!feeVerified) {
       throw new ValidationError(
-        feeCheckError ||
-        'Creator fee wallet is not redirected to the Front Protocol wallet. ' +
-        'Go to pump.fun → your token → Creator Rewards → redirect to: ' + PROTOCOL_WALLET
+        'Creator-fee redirect not verified yet. On Noxa (fun.noxa.fi), redirect your ' +
+        "token's creator fees to the protocol wallet" +
+        (PROTOCOL_WALLET ? `: ${PROTOCOL_WALLET}` : '') +
+        ', then contact the team to activate listing. Automatic verification is coming.',
       );
     }
 
-    // ── Auto-detect tier from DexScreener ──
+    // ── Metadata + tier from GeckoTerminal (Robinhood Chain) ──
     let resolvedName: string | null = null;
     let resolvedSymbol: string | null = null;
     let resolvedImage: string | null = null;
@@ -404,49 +344,22 @@ router.post('/list', async (req, res) => {
     let isBonded = false;
 
     try {
-      const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
-      if (dexRes.ok) {
-        const dexData = await dexRes.json() as any;
-        const pairs = dexData.pairs || [];
-        if (pairs.length > 0) {
-          // Get highest liquidity pair
-          const bestPair = pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
-          resolvedName = bestPair.baseToken?.name || null;
-          resolvedSymbol = bestPair.baseToken?.symbol || null;
-          resolvedImage = bestPair.info?.imageUrl || null;
-          marketCapUsd = bestPair.marketCap || bestPair.fdv || 0;
-          liquidityUsd = bestPair.liquidity?.usd || 0;
-          // Check if bonded (has Raydium pair)
-          isBonded = pairs.some((p: any) =>
-            p.dexId === 'raydium' || p.labels?.includes('bonded')
-          );
-        }
-      }
+      const gt = await gtFetchToken(tokenAddress);
+      resolvedName = gt.name !== 'Unknown' ? gt.name : null;
+      resolvedSymbol = gt.symbol !== '???' ? gt.symbol : null;
+      resolvedImage = gt.logoURI;
+      marketCapUsd = gt.marketCap;
+      liquidityUsd = gt.liquidity;
+      // Noxa launches straight into a locked Uniswap V3 pool —
+      // a live pool with real liquidity counts as bonded.
+      isBonded = liquidityUsd > 0;
     } catch {
-      // DexScreener failed — use defaults
+      // GeckoTerminal has no data yet (brand-new launch) — defaults apply
     }
 
     // Determine tier from market data
     const tierConfig = determineTier(marketCapUsd, liquidityUsd, isBonded);
     const resolvedTier: Tier = tierConfig ? tierConfig.tier as Tier : 'degen';
-
-    // Fallback: Jupiter for metadata
-    if (!resolvedName || !resolvedSymbol) {
-      try {
-        const jupRes = await fetch(`https://tokens.jup.ag/token/${tokenAddress}`);
-        if (jupRes.ok) {
-          const text = await jupRes.text();
-          if (text) {
-            const meta = JSON.parse(text) as { name?: string; symbol?: string; logoURI?: string };
-            resolvedName = resolvedName || meta.name || null;
-            resolvedSymbol = resolvedSymbol || meta.symbol || null;
-            resolvedImage = resolvedImage || meta.logoURI || null;
-          }
-        }
-      } catch {
-        // Silently ignore
-      }
-    }
 
     // Create token record
     const token = await prisma.token.create({

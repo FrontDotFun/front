@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Price Monitor Worker
+// SCALE PROTOCOL — Price Monitor Worker (Robinhood Chain)
 // ──────────────────────────────────────────────
 //
 // Polls all open positions every 10 seconds, checks P&L against exit
@@ -13,7 +13,7 @@ import {
   calculateLivePnLPercent,
   type Tier,
 } from '@front-protocol/core';
-import { getMultipleTokenPrices } from '@front-protocol/solana';
+import { getTokenPricesEth } from './evm-prices.js';
 import {
   redisConnection,
   QUEUE_NAMES,
@@ -63,16 +63,17 @@ async function processPriceCheckJob(job: Job<PriceCheckJobData>): Promise<void> 
     }
     const tokenAddresses = Array.from(addrSet);
 
-    // Fetch live prices from Jupiter Price API v2
-    const priceMap = await getMultipleTokenPrices(tokenAddresses);
+    // Fetch live prices from GeckoTerminal (Robinhood Chain), converted
+    // into the same wei-per-raw-unit basis entryPrice is stored in
+    const priceMap = await getTokenPricesEth(tokenAddresses);
 
     let closedCount = 0;
     let warningCount = 0;
 
     for (const position of openPositions) {
       try {
-        const priceData = priceMap.get(position.token.address);
-        const currentPrice = priceData?.priceSol ?? 0;
+        const priceData = priceMap.get(position.token.address.toLowerCase());
+        const currentPrice = priceData?.weiPerRawUnit ?? 0;
 
         if (!currentPrice || !position.entryPrice) {
           // No live price or no entry price recorded — skip price-based checks

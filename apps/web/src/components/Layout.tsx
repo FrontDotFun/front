@@ -6,7 +6,7 @@ import { SfxToggle } from './SfxToggle';
 import { Logo } from './Logo';
 import { HelpOverlay } from './HelpOverlay';
 import { blip } from '../lib/sfx';
-import { fetchTokenOverview } from '../lib/birdeye';
+import { fetchTokenOverview } from '../lib/marketdata';
 import { formatPrice } from '../lib/format';
 import * as api from '../lib/api';
 
@@ -43,7 +43,7 @@ const UtcClock: FC = () => {
   return (
     <span className="top-nav-clock">
       <span className="nav-live-dot" />
-      <span>SOL·MAINNET</span>
+      <span>ROBINHOOD·L2</span>
       <b>{hh}:{mm}:{ss} UTC</b>
     </span>
   );
@@ -69,7 +69,7 @@ export const Layout: FC = () => {
     return () => window.removeEventListener('keydown', handler);
   }, [navigate]);
 
-  // Fetch listed tokens from API, then enrich with Birdeye prices
+  // Fetch listed tokens from API, then enrich with live GeckoTerminal prices
   useEffect(() => {
     let dead = false;
 

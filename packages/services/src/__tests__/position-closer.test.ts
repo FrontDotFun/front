@@ -1,10 +1,10 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Position Closer Worker Tests
+// SCALE PROTOCOL — Position Closer Worker Tests
 // ──────────────────────────────────────────────
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { prisma } from '@front-protocol/database';
-import { swapTokenToSol, transferSol } from '@front-protocol/solana';
+import { swapTokenForEth, transferEth } from '@front-protocol/evm';
 import { positionCloseQueue, burnQueue, lockQueue, creatorPayoutsQueue, insuranceFundQueue } from '../queues.js';
 
 // Import the module under test — the worker factory is mocked,
@@ -49,7 +49,7 @@ describe('position-closer logic', () => {
 
       vi.mocked(prisma.position.findUnique).mockResolvedValue(mockPosition as any);
       // Worker should log error and return without swap
-      expect(vi.mocked(swapTokenToSol)).not.toHaveBeenCalled();
+      expect(vi.mocked(swapTokenForEth)).not.toHaveBeenCalled();
     });
   });
 

@@ -1,7 +1,5 @@
-import { type FC, useState } from 'react';
+import { type FC, useState, useEffect } from 'react';
 import * as api from '../lib/api';
-
-const PROTOCOL_WALLET = 'DAcjYqJzSHXqYfGzgEwfd2HVcxYPXemnLXc27fHwaLq4';
 
 const stepStyle = {
   background: 'var(--bg-2)',
@@ -40,10 +38,18 @@ export const ListToken: FC = () => {
   const [tokenAddress, setTokenAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  // Live pool wallet from on-chain stats — null until the EVM pool
+  // wallet is configured; never show a stale hardcoded address
+  const [protocolWallet, setProtocolWallet] = useState<string | null>(null);
+  useEffect(() => {
+    api.getProtocolStats()
+      .then((s) => setProtocolWallet(s.poolWalletAddress ?? null))
+      .catch(() => setProtocolWallet(null));
+  }, []);
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(PROTOCOL_WALLET);
+      if (protocolWallet) await navigator.clipboard.writeText(protocolWallet);
     } catch {
       // clipboard unavailable
     }
@@ -85,22 +91,24 @@ export const ListToken: FC = () => {
       <div>
         <h2 style={{ marginBottom: 4 }}>List Your Token</h2>
         <p className="text-muted" style={{ fontSize: '0.93rem', margin: 0 }}>
-          Redirect your pump.fun creator fees to the Scale Protocol wallet, then paste your token address below. Tier, name, and logo are auto-detected.
+          Redirect your Noxa creator fees (fun.noxa.fi) to the Scale Protocol wallet, then paste your token address below. Tier, name, and logo are auto-detected.
         </p>
       </div>
 
       {/* Protocol Wallet */}
       <div className="card" style={{ padding: '16px 20px' }}>
         <span className="text-muted" style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-          Step 1 — Redirect Creator Rewards to This Wallet
+          Step 1 — Redirect Noxa Creator Fees to This Wallet
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 6 }}>
           <code className="mono" style={{ fontSize: '0.86rem', color: 'var(--text-0)', flex: 1, wordBreak: 'break-all' }}>
-            {PROTOCOL_WALLET}
+            {protocolWallet ?? 'Pool wallet not configured yet — listing opens at launch'}
           </code>
-          <button className="btn btn-outline btn-sm" onClick={handleCopy} type="button">
-            Copy
-          </button>
+          {protocolWallet && (
+            <button className="btn btn-outline btn-sm" onClick={handleCopy} type="button">
+              Copy
+            </button>
+          )}
         </div>
       </div>
 
@@ -114,7 +122,7 @@ export const ListToken: FC = () => {
             type="text"
             value={tokenAddress}
             onChange={(e) => setTokenAddress(e.target.value)}
-            placeholder="Paste Solana token address..."
+            placeholder="Paste Robinhood Chain token address (0x…)"
             style={inputStyle}
             required
           />

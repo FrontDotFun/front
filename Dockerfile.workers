@@ -22,22 +22,21 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/core/package.json packages/core/
 COPY packages/database/package.json packages/database/
-COPY packages/solana/package.json packages/solana/
+COPY packages/evm/package.json packages/evm/
 COPY packages/services/package.json packages/services/
 
 RUN pnpm install --frozen-lockfile
 
 COPY packages/core/ packages/core/
 COPY packages/database/ packages/database/
-COPY packages/solana/ packages/solana/
+COPY packages/evm/ packages/evm/
 COPY packages/services/ packages/services/
 
 RUN cd packages/database && npx prisma generate
 
-# core/solana export dist entrypoints (database exports src) — build them
+# core/services export dist entrypoints (database + evm export src) — build them
 # exactly like Dockerfile.api does so imports resolve under tsx
 RUN cd packages/core && pnpm build
-RUN cd packages/solana && pnpm build
 RUN cd packages/services && pnpm build
 
 # The Railway service's start command is `node packages/services/dist/scheduler.js`

@@ -1,35 +1,37 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — On-chain truth for public stats
+// SCALE PROTOCOL — On-chain truth for public stats (Robinhood Chain)
 //
 // The DB ledger is protocol accounting; the chain is reality.
-// Public stats must report reality, so we read the pool wallet
-// balance and the locked $FRONT supply directly from RPC and
-// cache briefly to stay gentle on the endpoint.
+// Public stats report the pool wallet's REAL ETH balance and the
+// protocol token's locked supply, read via viem from Robinhood
+// Chain (Arbitrum Orbit L2, chain 4663) and cached briefly.
 // ──────────────────────────────────────────────
 
-import { PublicKey, getConnection, getProtocolWallet } from '@front-protocol/solana';
+import {
+  getEthBalance,
+  erc20Balance,
+  erc20TotalSupply,
+  erc20Decimals,
+  getProtocolAccount,
+  hasEvmProtocolKey,
+} from '@front-protocol/evm';
 
-// No hardcoded token — the protocol token is configured per-launch via
-// FRONT_TOKEN_MINT. Until it's set, locked-supply stats are honestly
-// null rather than reporting a previous launch's numbers.
-const FRONT_MINT = (process.env.FRONT_TOKEN_MINT ?? '').trim();
+// The protocol token (ERC-20 on Robinhood Chain), configured per-launch.
+// Until it's set, locked-supply stats are honestly null.
+const TOKEN_ADDRESS = (process.env.FRONT_TOKEN_MINT ?? '').trim();
 
 /** Wallets whose protocol-token holdings count as "locked supply". */
 const LOCKED_WALLETS: string[] = (process.env.FRONT_LOCKED_WALLETS ?? '')
   .split(',').map((s) => s.trim()).filter(Boolean);
 
 export interface OnchainStats {
-  /** Real SOL balance of the protocol pool wallet, in lamports */
+  /** Real ETH balance of the protocol pool wallet, in wei (string) */
   poolWalletLamports: string;
-  /** Pool wallet address (transparency — let users verify on Solscan) */
+  /** Pool wallet address — verify on Blockscout */
   poolWalletAddress: string;
-  /** Protocol token held by lock wallets (ui amount); null if no token configured */
   frontLockedTokens: number | null;
-  /** Total protocol-token supply (ui amount); null if no token configured */
   frontTotalSupply: number | null;
-  /** frontLockedTokens / frontTotalSupply * 100; null if no token configured */
   frontLockedPct: number | null;
-  /** Unix ms when this snapshot was taken */
   fetchedAt: number;
 }
 
@@ -39,40 +41,32 @@ let inFlight: Promise<OnchainStats | null> | null = null;
 
 async function fetchSnapshot(): Promise<OnchainStats | null> {
   try {
-    const connection = getConnection();
-    const wallet = getProtocolWallet().publicKey;
-
-    // Pool balance is always real; locked-supply only when a token is configured
-    const balance = await connection.getBalance(wallet);
+    if (!hasEvmProtocolKey()) {
+      // No EVM pool key configured yet — nothing truthful to report.
+      return null;
+    }
+    const wallet = getProtocolAccount().address;
+    const balance = await getEthBalance(wallet);
 
     let frontLockedTokens: number | null = null;
     let frontTotalSupply: number | null = null;
     let frontLockedPct: number | null = null;
 
-    if (FRONT_MINT) {
-      const mint = new PublicKey(FRONT_MINT);
-      const [supply, ...lockedAccounts] = await Promise.all([
-        connection.getTokenSupply(mint),
-        ...LOCKED_WALLETS.map(async (w) => {
-          try {
-            const accs = await connection.getParsedTokenAccountsByOwner(new PublicKey(w), { mint });
-            return accs.value.reduce(
-              (sum, a) => sum + (a.account.data.parsed?.info?.tokenAmount?.uiAmount ?? 0),
-              0,
-            );
-          } catch {
-            return 0;
-          }
-        }),
+    if (/^0x[a-fA-F0-9]{40}$/.test(TOKEN_ADDRESS)) {
+      const [supplyRaw, decimals, ...locked] = await Promise.all([
+        erc20TotalSupply(TOKEN_ADDRESS),
+        erc20Decimals(TOKEN_ADDRESS),
+        ...LOCKED_WALLETS.map((w) => erc20Balance(TOKEN_ADDRESS, w).catch(() => 0n)),
       ]);
-      frontTotalSupply = supply.value.uiAmount ?? 0;
-      frontLockedTokens = lockedAccounts.reduce((a, b) => a + b, 0);
+      const div = Math.pow(10, decimals);
+      frontTotalSupply = Number(supplyRaw) / div;
+      frontLockedTokens = locked.reduce((a, b) => a + Number(b) / div, 0);
       frontLockedPct = frontTotalSupply > 0 ? (frontLockedTokens / frontTotalSupply) * 100 : 0;
     }
 
     return {
-      poolWalletLamports: String(balance),
-      poolWalletAddress: wallet.toBase58(),
+      poolWalletLamports: balance.toString(),
+      poolWalletAddress: wallet,
       frontLockedTokens,
       frontTotalSupply,
       frontLockedPct,
@@ -85,9 +79,8 @@ async function fetchSnapshot(): Promise<OnchainStats | null> {
 }
 
 /**
- * Cached on-chain snapshot. Returns null only if RPC fails and no
- * previous snapshot exists — callers must degrade honestly, never
- * invent numbers.
+ * Cached on-chain snapshot. Returns null only if the chain read fails
+ * and no previous snapshot exists — callers degrade honestly.
  */
 export async function getOnchainStats(): Promise<OnchainStats | null> {
   if (cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) return cache;
@@ -96,5 +89,5 @@ export async function getOnchainStats(): Promise<OnchainStats | null> {
   }
   const fresh = await inFlight;
   if (fresh) cache = fresh;
-  return cache; // stale-if-error: last good snapshot beats nothing
+  return cache;
 }

@@ -188,7 +188,7 @@ const Typewriter: FC<{ text: string; delay?: number; className?: string }> = ({ 
 };
 
 /* ── Live protocol stat ─────────────────────────────────────── */
-const lam = (v?: string) => (v ? Number(v) / 1e9 : 0);
+const lam = (v?: string) => (v ? Number(v) / 1e18 : 0);
 
 const LiveStats: FC = () => {
   const [stats, setStats] = useState<api.ProtocolStatsResponse | null>(null);
@@ -275,7 +275,7 @@ export const Landing: FC = () => {
             transition={{ duration: 0.5, delay: 0.1 }}
             className="lp-badge"
           >
-            <span className="lp-badge-dot" /> LIVE ON SOLANA MAINNET — TERMINAL v2.0
+            <span className="lp-badge-dot" /> LIVE ON ROBINHOOD CHAIN — TERMINAL v2.0
           </motion.div>
 
           <h1 className="lp-h1">

@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
 import { formatUsd, formatSol } from '../lib/format';
 
-const SOLANA_ADDR_REGEX = /^[1-9A-HJ-NP-Za-km-z]+$/;
 
 export const Explore: FC = () => {
   const navigate = useNavigate();
@@ -28,9 +27,9 @@ export const Explore: FC = () => {
       return;
     }
 
-    // If input looks like a Solana address (32-44 chars, base58)
+    // If input looks like a Robinhood Chain token address (0x + 40 hex)
     const trimmed = search.trim();
-    if (trimmed.length >= 32 && trimmed.length <= 44 && SOLANA_ADDR_REGEX.test(trimmed)) {
+    if (/^0x[a-fA-F0-9]{40}$/.test(trimmed)) {
       // Navigate directly to trade page — listing check is done there
       navigate(`/trade?token=${trimmed}`);
       return;
@@ -161,7 +160,7 @@ export const Explore: FC = () => {
                   src={
                     token.imageUri
                       ? token.imageUri.replace('https://ipfs.io/ipfs/', 'https://cf-ipfs.com/ipfs/')
-                      : `https://dd.dexscreener.com/ds-data/tokens/solana/${token.address}.png`
+                      : `https://dd.dexscreener.com/ds-data/tokens/robinhood/${token.address}.png`
                   }
                   alt={token.symbol}
                   style={{
@@ -174,7 +173,7 @@ export const Explore: FC = () => {
                     const step = img.dataset.fallback || '0';
                     if (step === '0') {
                       img.dataset.fallback = '1';
-                      img.src = `https://dd.dexscreener.com/ds-data/tokens/solana/${token.address}.png`;
+                      img.src = `https://dd.dexscreener.com/ds-data/tokens/robinhood/${token.address}.png`;
                     } else if (step === '1') {
                       img.dataset.fallback = '2';
                       img.src = `https://tokens.jup.ag/token/${token.address}/logo`;
@@ -234,7 +233,7 @@ export const Explore: FC = () => {
                   <div style={{ fontSize: 10, color: '#5c6b60', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Volume</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#a6bcae', fontFamily: "'JetBrains Mono', monospace" }}>
                     {token.totalTradingVolume && token.totalTradingVolume !== '0'
-                      ? `${formatSol(token.totalTradingVolume)} SOL`
+                      ? `${formatSol(token.totalTradingVolume)} ETH`
                       : '—'}
                   </div>
                 </div>

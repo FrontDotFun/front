@@ -1,328 +1,153 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Listing Scanner Worker
+// SCALE PROTOCOL — Listing Scanner Worker (Robinhood Chain)
 // ──────────────────────────────────────────────
 //
-// Automatically discovers and lists tokens whose creators have directed
-// their pump.fun fee-sharing config to the Front Protocol wallet.
+// On Solana this decoded pump.fun fee-sharing configs on-chain to
+// auto-list tokens. Noxa (fun.noxa.fi) doesn't publish its fee-config
+// contracts yet, so automatic fee-redirect verification isn't possible
+// on Robinhood Chain — we don't pretend otherwise.
 //
-// Strategy:
-//   1. Periodic scan: fetch latest pump.fun tokens, check fee_recipient
-//   2. Re-verify existing listed tokens to deactivate any that removed fees
-//   3. Only list tokens where fee_recipient === PROTOCOL_WALLET
+// What runs today:
+//   • checkAndListToken(mint): verifies the token is a real ERC-20 on
+//     Robinhood Chain with a live Uniswap V3 pool (GeckoTerminal), and
+//     lists it if it's on the manually-verified allowlist
+//     (SCALE_VERIFIED_TOKENS env) — same gate the API uses.
+//   • Periodic scan: sweeps the allowlist so newly-added env entries
+//     get listed without a manual API call.
 //
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
 import { determineTier } from '@front-protocol/core';
-import { getConnection, PublicKey } from '@front-protocol/solana';
-import { createRequire } from 'node:module';
-
-// pump-sdk is CJS-only — use createRequire for ESM compat
-let feeSharingConfigPda: ((mint: InstanceType<typeof PublicKey>) => InstanceType<typeof PublicKey>) | null = null;
-let PumpSdkClass: (new () => { decodeSharingConfig: (info: any) => any }) | null = null;
-try {
-  const require = createRequire(import.meta.url);
-  const pumpSdk = require('@pump-fun/pump-sdk');
-  feeSharingConfigPda = pumpSdk.feeSharingConfigPda;
-  PumpSdkClass = pumpSdk.PumpSdk;
-} catch {
-  console.warn('[listing-scanner] @pump-fun/pump-sdk not available');
-}
+import { erc20TotalSupply } from '@front-protocol/evm';
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[listing-scanner]';
-const PROTOCOL_WALLET = process.env.PROTOCOL_WALLET || 'DAcjYqJzSHXqYfGzgEwfd2HVcxYPXemnLXc27fHwaLq4';
+const PROTOCOL_WALLET = (process.env.PROTOCOL_WALLET || '').trim();
+
+const GT = 'https://api.geckoterminal.com/api/v2';
+const GT_NETWORK = 'robinhood';
+
+/** Manually-verified Noxa fee redirects (comma-separated 0x addresses). */
+function verifiedTokens(): string[] {
+  return (process.env.SCALE_VERIFIED_TOKENS ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter((s) => /^0x[a-f0-9]{40}$/.test(s));
+}
 
 interface ListingScanJobData {
-  /** When set, only scan a specific mint address */
+  /** When set, only scan a specific token address */
   mint?: string;
 }
 
 /**
- * Verify a token's fee redirect via on-chain sharing config + pump.fun API.
- *
- * Uses the pump SDK to derive the feeSharingConfigPda and decode it.
- * If the protocol wallet is listed as a shareholder → verified.
- */
-async function verifyFeeRedirect(mint: string): Promise<{
-  verified: boolean;
-  name: string;
-  symbol: string;
-  creator: string;
-  imageUri: string;
-  marketCap: number;
-  complete: boolean;
-  feeRecipient: string | null;
-} | null> {
-  let verified = false;
-  let feeRecipient: string | null = null;
-
-  // ── Method 1: Check on-chain sharing config via Pump SDK ──
-  if (!feeSharingConfigPda || !PumpSdkClass) {
-    return null; // SDK not available
-  }
-  try {
-    const connection = getConnection();
-    const mintPubkey = new PublicKey(mint);
-    const sharingPda = feeSharingConfigPda(mintPubkey);
-    const sharingInfo = await connection.getAccountInfo(sharingPda);
-    if (sharingInfo) {
-      // Decode the sharing config to find shareholders
-      try {
-        const pumpSdk = new PumpSdkClass();
-        const config = pumpSdk.decodeSharingConfig(sharingInfo);
-        // config.shareholders is an array of { address, shareBps }
-        const shareholders = (config as any).shareholders || (config as any).shares || [];
-        for (const sh of shareholders) {
-          const addr = sh.address?.toBase58?.() || sh.wallet?.toBase58?.() || String(sh.address || sh.wallet || '');
-          if (addr === PROTOCOL_WALLET) {
-            verified = true;
-            feeRecipient = PROTOCOL_WALLET;
-            break;
-          }
-        }
-        if (!verified) {
-          // Sharing config exists but protocol wallet is not a shareholder
-          feeRecipient = shareholders.length > 0
-            ? (shareholders[0].address?.toBase58?.() || String(shareholders[0].address || ''))
-            : 'unknown';
-        }
-      } catch (decodeErr) {
-        // Can't decode but account exists — might mean config is there
-        console.warn(`${PREFIX} Could not decode sharing config for ${mint}: ${decodeErr}`);
-      }
-    }
-  } catch {
-    // On-chain check failed — fallback to API
-  }
-
-  // ── Method 2: Pump.fun API check ──
-  try {
-    const response = await fetch(`https://frontend-api-v3.pump.fun/coins/${mint}`, {
-      signal: AbortSignal.timeout(10_000),
-      headers: { Accept: 'application/json' },
-    });
-
-    if (!response.ok) {
-      // If we already verified on-chain, return that
-      if (verified) {
-        return { verified, name: 'Unknown', symbol: '???', creator: '', imageUri: '', marketCap: 0, complete: false, feeRecipient };
-      }
-      return null;
-    }
-
-    const data = await response.json() as Record<string, unknown>;
-
-    // Check API fields for fee_recipient (in case pump.fun adds it)
-    if (!verified) {
-      const apiRecipient = (data.fee_recipient as string) || (data.creator_fee_wallet as string) || null;
-      if (apiRecipient === PROTOCOL_WALLET) {
-        verified = true;
-        feeRecipient = PROTOCOL_WALLET;
-      } else if (apiRecipient) {
-        feeRecipient = apiRecipient;
-      }
-    }
-
-    return {
-      verified,
-      name: (data.name as string) || 'Unknown',
-      symbol: (data.symbol as string) || '???',
-      creator: (data.creator as string) || '',
-      imageUri: (data.image_uri as string) || '',
-      marketCap: (data.usdMarketCap as number) || (data.usd_market_cap as number) || 0,
-      complete: (data.complete as boolean) || false,
-      feeRecipient,
-    };
-  } catch {
-    if (verified) {
-      return { verified, name: 'Unknown', symbol: '???', creator: '', imageUri: '', marketCap: 0, complete: false, feeRecipient };
-    }
-    return null;
-  }
-}
-
-/**
- * Process a listing scan job.
- * 1. Scans latest pump.fun tokens for new fee-verified listings
- * 2. Re-verifies existing listed tokens
- */
-async function processListingScan(job: Job<ListingScanJobData>): Promise<void> {
-  const startTime = Date.now();
-  console.log(`${PREFIX} Starting listing scan (job ${job.id})`);
-
-  try {
-    // If a specific mint is provided, only check that one
-    if (job.data.mint) {
-      await checkAndListToken(job.data.mint);
-      return;
-    }
-
-    // ── Part 1: Scan for new tokens ──
-    console.log(`${PREFIX} Scanning latest pump.fun tokens...`);
-    let newListings = 0;
-
-    try {
-      const response = await fetch('https://frontend-api-v3.pump.fun/coins/latest', {
-        signal: AbortSignal.timeout(15_000),
-        headers: { Accept: 'application/json' },
-      });
-
-      if (response.ok) {
-        const data = await response.json() as Array<Record<string, unknown>>;
-        if (Array.isArray(data)) {
-          const mints = data
-            .map((t) => (t.mint as string) || '')
-            .filter((m) => m.length > 0);
-
-          console.log(`${PREFIX} Fetched ${mints.length} latest token(s)`);
-
-          const MAX_NEW_PER_SCAN = 10;
-          for (const mint of mints) {
-            if (newListings >= MAX_NEW_PER_SCAN) break;
-            try {
-              const listed = await checkAndListToken(mint);
-              if (listed) newListings++;
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              console.error(`${PREFIX} Error checking ${mint.substring(0, 8)}…: ${msg}`);
-            }
-          }
-        }
-      } else {
-        console.warn(`${PREFIX} Pump.fun API returned ${response.status}`);
-      }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`${PREFIX} Failed to fetch latest tokens: ${msg}`);
-    }
-
-    // ── Part 2: Re-verify existing listed tokens ──
-    // Only deactivate if we can CONFIRM fees are going somewhere else.
-    // If pump.fun API doesn't expose fee_recipient (null), keep the token active.
-    console.log(`${PREFIX} Re-verifying existing listed tokens...`);
-    let deactivated = 0;
-    let reactivated = 0;
-
-    const existingTokens = await prisma.token.findMany({
-      where: {},
-      select: { id: true, address: true, symbol: true, isActive: true },
-    });
-
-    for (const token of existingTokens) {
-      try {
-        const result = await verifyFeeRedirect(token.address);
-        if (!result) {
-          // API unavailable — don't change anything
-          console.warn(`${PREFIX} Could not verify ${token.symbol} — API unavailable, keeping current state`);
-          continue;
-        }
-
-        if (result.verified && !token.isActive) {
-          // Fees confirmed going to protocol — reactivate
-          await prisma.token.update({
-            where: { id: token.id },
-            data: { isActive: true },
-          });
-          reactivated++;
-          console.log(`${PREFIX} ♻️ Reactivated ${token.symbol} — fees confirmed going to protocol`);
-        } else if (!result.verified && result.feeRecipient && result.feeRecipient !== '' && token.isActive) {
-          // Fee recipient is CONFIRMED going to a different wallet — deactivate
-          await prisma.token.update({
-            where: { id: token.id },
-            data: { isActive: false },
-          });
-          deactivated++;
-          console.log(
-            `${PREFIX} ❌ Deactivated ${token.symbol} — fee_recipient is "${result.feeRecipient}", not protocol wallet`,
-          );
-        } else if (!result.verified && !result.feeRecipient) {
-          // fee_recipient not exposed by API — can't verify, keep current state
-          console.log(`${PREFIX} ⏭ ${token.symbol} — fee_recipient not exposed by API, keeping active`);
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`${PREFIX} Re-verify error for ${token.symbol}: ${msg}`);
-      }
-    }
-
-    const elapsed = Date.now() - startTime;
-    console.log(
-      `${PREFIX} Scan complete: ${newListings} new, ${deactivated} deactivated, ${reactivated} reactivated (${elapsed}ms)`,
-    );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`${PREFIX} Listing scan error: ${msg}`);
-    throw err;
-  }
-}
-
-/**
- * Check a specific token's fee redirect and auto-list if verified.
+ * Verify a token exists on Robinhood Chain + fetch metadata from
+ * GeckoTerminal. Fee-redirect verification is the env allowlist —
+ * Noxa exposes no programmatic check yet.
  */
 async function checkAndListToken(mint: string): Promise<boolean> {
-  // Check if already listed
-  const existing = await prisma.token.findUnique({
-    where: { address: mint },
-    select: { id: true, isActive: true },
-  });
-
-  if (existing) return false;
-
-  // Verify fee redirect on pump.fun
-  const result = await verifyFeeRedirect(mint);
-  if (!result) {
+  const addr = mint.toLowerCase();
+  if (!/^0x[a-f0-9]{40}$/.test(addr)) {
+    console.warn(`${PREFIX} Skipping ${mint} — not a Robinhood Chain (0x…) address`);
     return false;
   }
 
-  if (!result.verified) {
-    // Fee not redirected to protocol — skip silently
+  const existing = await prisma.token.findUnique({ where: { address: addr } });
+  if (existing) {
+    if (!existing.isActive) {
+      await prisma.token.update({ where: { id: existing.id }, data: { isActive: true } });
+      console.log(`${PREFIX} Reactivated ${existing.symbol ?? addr}`);
+      return true;
+    }
+    return false; // already listed and active
+  }
+
+  if (!verifiedTokens().includes(addr)) {
+    console.log(`${PREFIX} ${addr} not on the verified allowlist — skipping`);
     return false;
   }
 
-  // ✅ Fee verified — auto-list the token
-  // Determine tier from market cap
-  const tierConfig = determineTier(result.marketCap, result.marketCap * 0.1, result.complete);
-  const tier = tierConfig ? tierConfig.tier : 'degen';
-
-  // Fetch DexScreener for better liquidity data
-  let imageUri = result.imageUri;
+  // Must be a real ERC-20 on Robinhood Chain
   try {
-    const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`, {
-      signal: AbortSignal.timeout(5000),
+    await erc20TotalSupply(addr);
+  } catch {
+    console.warn(`${PREFIX} ${addr} is not readable as an ERC-20 on Robinhood Chain — skipping`);
+    return false;
+  }
+
+  // Metadata + market data from GeckoTerminal
+  let name: string | null = null;
+  let symbol: string | null = null;
+  let imageUri: string | null = null;
+  let marketCapUsd = 0;
+  let liquidityUsd = 0;
+  try {
+    const res = await fetch(`${GT}/networks/${GT_NETWORK}/tokens/${addr}?include=top_pools`, {
+      headers: { Accept: 'application/json' },
     });
-    if (dexRes.ok) {
-      const dexData = await dexRes.json() as any;
-      const pairs = dexData.pairs || [];
-      if (pairs.length > 0) {
-        const bestPair = pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
-        imageUri = bestPair.info?.imageUrl || imageUri;
-      }
+    if (res.ok) {
+      const json = (await res.json()) as any;
+      const a = json.data?.attributes ?? {};
+      const pool = (json.included ?? [])[0]?.attributes ?? {};
+      name = a.name ?? null;
+      symbol = a.symbol ?? null;
+      imageUri = a.image_url && a.image_url !== 'missing.png' ? a.image_url : null;
+      marketCapUsd = parseFloat(a.market_cap_usd ?? a.fdv_usd ?? '0') || 0;
+      liquidityUsd = parseFloat(a.total_reserve_in_usd ?? pool.reserve_in_usd ?? '0') || 0;
     }
   } catch {
-    // Use pump.fun image as fallback
+    // GT down or token too new — list with defaults
+  }
+
+  const tierConfig = determineTier(marketCapUsd, liquidityUsd, liquidityUsd > 0);
+  if (!tierConfig) {
+    console.warn(`${PREFIX} ${addr} liquidity too low to list safely ($${liquidityUsd.toFixed(0)}) — skipping`);
+    return false;
   }
 
   await prisma.token.create({
     data: {
-      address: mint,
-      name: result.name,
-      symbol: result.symbol,
+      address: addr,
+      name,
+      symbol,
       imageUri,
-      creatorWallet: result.creator,
-      tier,
+      creatorWallet: PROTOCOL_WALLET || addr, // creator unknown until Noxa exposes it
+      tier: tierConfig.tier,
       isActive: true,
       isAutoListed: true,
     },
   });
 
   console.log(
-    `${PREFIX} ✅ Auto-listed ${result.symbol} (${result.name}) | ` +
-    `tier=${tier} | fee_recipient=${PROTOCOL_WALLET.substring(0, 8)}… | ` +
-    `mcap=$${result.marketCap.toLocaleString()}`,
+    `${PREFIX} ✅ Listed ${symbol ?? addr} (tier: ${tierConfig.tier}, liq: $${liquidityUsd.toFixed(0)})`,
   );
-
   return true;
+}
+
+/**
+ * Periodic scan: sweep the verified allowlist for anything not yet listed.
+ */
+async function processScan(job: Job<ListingScanJobData>): Promise<void> {
+  if (job.data.mint) {
+    await checkAndListToken(job.data.mint);
+    return;
+  }
+
+  const allow = verifiedTokens();
+  if (allow.length === 0) {
+    return; // nothing verified yet — quiet no-op
+  }
+
+  let listed = 0;
+  for (const addr of allow) {
+    try {
+      if (await checkAndListToken(addr)) listed++;
+    } catch (err) {
+      console.error(`${PREFIX} Error listing ${addr}:`, err instanceof Error ? err.message : err);
+    }
+  }
+  if (listed > 0) console.log(`${PREFIX} Scan complete — ${listed} new listing(s)`);
 }
 
 // ──────────────────────────────────────────────
@@ -331,16 +156,12 @@ async function checkAndListToken(mint: string): Promise<boolean> {
 
 export const listingScannerWorker = new Worker<ListingScanJobData>(
   QUEUE_NAMES.LISTING_SCAN,
-  processListingScan,
+  processScan,
   {
     connection: redisConnection,
     concurrency: 1,
   },
 );
-
-listingScannerWorker.on('completed', (job) => {
-  console.log(`${PREFIX} Job ${job.id} completed`);
-});
 
 listingScannerWorker.on('failed', (job, err) => {
   console.error(`${PREFIX} Job ${job?.id} failed: ${err.message}`);
@@ -349,9 +170,5 @@ listingScannerWorker.on('failed', (job, err) => {
 listingScannerWorker.on('error', (err) => {
   console.error(`${PREFIX} Worker error: ${err.message}`);
 });
-
-// ──────────────────────────────────────────────
-// Exports for manual listing check
-// ──────────────────────────────────────────────
 
 export { checkAndListToken };

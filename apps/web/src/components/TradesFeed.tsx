@@ -1,5 +1,5 @@
 import { type FC, useState, useEffect, useRef } from 'react';
-import { fetchRecentTrades, type TradeItem } from '../lib/birdeye';
+import { fetchRecentTrades, type TradeItem } from '../lib/marketdata';
 
 interface TradesFeedProps {
   tokenAddress?: string;
@@ -16,8 +16,8 @@ function truncateWallet(w: string): string {
 }
 
 /**
- * Real-time trades feed for a token, powered by Birdeye API.
- * Shows recent buys/sells with color coding, auto-refreshes every 5s.
+ * Trades feed for a token — real Uniswap V3 swaps from GeckoTerminal
+ * via our API. Auto-refreshes every 10s (GT rate limits below that).
  */
 export const TradesFeed: FC<TradesFeedProps> = ({ tokenAddress }) => {
   const [trades, setTrades] = useState<TradeItem[]>([]);
@@ -36,8 +36,8 @@ export const TradesFeed: FC<TradesFeedProps> = ({ tokenAddress }) => {
 
     load();
 
-    // Auto-refresh every 5 seconds
-    intervalRef.current = setInterval(load, 5000);
+    // Auto-refresh every 10 seconds
+    intervalRef.current = setInterval(load, 10000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -83,7 +83,7 @@ export const TradesFeed: FC<TradesFeedProps> = ({ tokenAddress }) => {
             <td>
               {trade.txHash && (
                 <a
-                  href={`https://solscan.io/tx/${trade.txHash}`}
+                  href={`https://robinhoodchain.blockscout.com/tx/${trade.txHash}`}
                   target="_blank"
                   rel="noreferrer"
                   className="link-dim"

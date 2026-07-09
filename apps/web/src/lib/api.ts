@@ -538,7 +538,7 @@ export function verifyTokenListing(tokenAddress: string): Promise<{
   return request(`/tokens/${tokenAddress}/verify`);
 }
 
-// ── Market Data (Birdeye Proxy) ──
+// ── Market Data (GeckoTerminal via API — Robinhood Chain) ──
 
 export interface MarketToken {
   address: string;
@@ -594,6 +594,26 @@ export function getMarketPriceHistory(
 /** WETH/USD OHLCV on Robinhood Chain — the landing hero reference feed. */
 export function getReferenceHistory(type = '15m'): Promise<OHLCVCandle[]> {
   return request(`/market/reference-history?type=${encodeURIComponent(type)}`);
+}
+
+export interface MarketTrade {
+  txHash: string;
+  blockUnixTime: number;
+  side: 'buy' | 'sell';
+  tokenAmount: number;
+  priceUsd: number;
+  volumeUsd: number;
+  owner: string;
+}
+
+/** Recent real swaps in the token's top Uniswap V3 pool. */
+export function getMarketTrades(address: string, limit = 30): Promise<MarketTrade[]> {
+  return request(`/market/token/${address}/trades?limit=${limit}`);
+}
+
+/** Top Uniswap V3 pool for a token — used for the GeckoTerminal embed. */
+export function getMarketPool(address: string): Promise<{ pool: string | null }> {
+  return request(`/market/token/${address}/pool`);
 }
 
 // ── Portfolio ──

@@ -82,7 +82,8 @@ export const Account: FC = () => {
     setWithdrawing(true);
     setWithdrawResult(null);
     try {
-      const amountLamports = String(Math.round(parseFloat(withdrawAmount) * 1e9));
+      // micro-ETH precision then scale to wei — avoids float drift past 2^53
+      const amountLamports = String(BigInt(Math.round(parseFloat(withdrawAmount) * 1e6)) * 1_000_000_000_000n);
       const result = await api.withdrawWallet(destAddress, amountLamports);
       setWithdrawResult({ success: true, message: 'Withdrawal successful!', txSig: result.txSignature });
       setDestAddress('');
@@ -218,12 +219,12 @@ export const Account: FC = () => {
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={statLabel}>SOL Balance</div>
+            <div style={statLabel}>ETH Balance</div>
             <div style={{ ...statValue, color: 'var(--primary)' }}>
               {balanceLoading ? (
                 <span className="skeleton" style={{ display: 'inline-block', width: 80, height: 24, borderRadius: 0 }} />
               ) : (
-                <>{balance?.balanceSol || '0.0000'} SOL</>
+                <>{balance?.balanceSol || '0.0000'} ETH</>
               )}
             </div>
           </div>
@@ -233,7 +234,7 @@ export const Account: FC = () => {
         <div style={{ borderTop: '1px solid #12110c', paddingTop: 14, marginBottom: 16 }}>
           <div style={sectionLabel}>Deposit</div>
           <p style={{ fontSize: 12, color: '#66786a', marginBottom: 8 }}>
-            Send SOL to this address to deposit
+            Send ETH on Robinhood Chain to this address to deposit
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <code style={{
@@ -267,7 +268,7 @@ export const Account: FC = () => {
               <input
                 style={{ ...inputStyle, flex: 1 }}
                 type="number"
-                placeholder="Amount (SOL)"
+                placeholder="Amount (ETH)"
                 step="0.01"
                 min="0"
                 value={withdrawAmount}

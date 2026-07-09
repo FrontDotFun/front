@@ -1,23 +1,22 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Telegram Routes
+// SCALE PROTOCOL — Telegram Routes (Robinhood Chain)
 // ──────────────────────────────────────────────
 
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL } from '@front-protocol/core';
 import { verifyTelegramAuth, type AuthenticatedRequest } from '../middleware/auth';
 import { sendSuccess, sendError } from '../lib/response';
 import { ValidationError, NotFoundError, InsufficientFundsError } from '../lib/errors';
 
 const router = Router();
 
-import { generateBotWallet } from '@front-protocol/solana';
+import { generateCustodialWallet } from '@front-protocol/evm';
 
 function generateTelegramBotWallet(): { address: string; encryptedKey: string } {
-  const wallet = generateBotWallet();
+  const wallet = generateCustodialWallet();
   return {
-    address: wallet.publicKey,
+    address: wallet.address,
     encryptedKey: wallet.encryptedPrivateKey,
   };
 }
@@ -77,7 +76,7 @@ router.post('/wallet', verifyTelegramAuth, async (req, res) => {
 /**
  * POST /telegram/withdraw
  *
- * Withdraw SOL from the bot wallet to an external address.
+ * Withdraw ETH from the bot wallet to an external address.
  * Requires Telegram auth. The actual transfer is handled by services.
  */
 router.post('/withdraw', verifyTelegramAuth, async (req, res) => {
@@ -100,8 +99,8 @@ router.post('/withdraw', verifyTelegramAuth, async (req, res) => {
     }
 
     // Validate destination address format
-    if (typeof destinationAddress !== 'string' || destinationAddress.length < 32 || destinationAddress.length > 44) {
-      throw new ValidationError('Invalid destination address format');
+    if (typeof destinationAddress !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(destinationAddress)) {
+      throw new ValidationError('Invalid destination address — must be a Robinhood Chain (0x…) address');
     }
 
     let amount: bigint;
@@ -114,10 +113,10 @@ router.post('/withdraw', verifyTelegramAuth, async (req, res) => {
       throw new ValidationError('Amount must be positive');
     }
 
-    // Minimum withdrawal: 0.001 SOL (to cover tx fees)
-    const MIN_WITHDRAWAL = LAMPORTS_PER_SOL / 1000n;
+    // Minimum withdrawal: 0.0001 ETH (to cover tx fees)
+    const MIN_WITHDRAWAL = 100_000_000_000_000n;
     if (amount < MIN_WITHDRAWAL) {
-      throw new ValidationError('Minimum withdrawal is 0.001 SOL');
+      throw new ValidationError('Minimum withdrawal is 0.0001 ETH');
     }
 
     // Find user
@@ -170,9 +169,7 @@ router.get('/balance/:telegramId', verifyTelegramAuth, async (req, res) => {
       throw new NotFoundError('Telegram user', req.params.telegramId as string);
     }
 
-    // In production, query the actual on-chain balance via @solana/web3.js
-    // connection.getBalance(new PublicKey(user.walletAddress))
-    // For now, return the wallet address; balance must be fetched client-side or by services
+    // Balance is read from Robinhood Chain client-side or by services
 
     sendSuccess(res, {
       telegramId: user.telegramId.toString(),

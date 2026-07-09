@@ -1,21 +1,20 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Portfolio Routes
+// SCALE PROTOCOL — Portfolio Routes (Robinhood Chain)
 // ──────────────────────────────────────────────
 
 import { Router } from 'express';
 import { prisma } from '@front-protocol/database';
+import { getEthBalance } from '@front-protocol/evm';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { sendSuccess, sendError } from '../lib/response';
 
 const router = Router();
 
-const HELIUS_RPC = process.env.SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com';
-
 /**
  * GET /portfolio
  *
  * Return the authenticated user's complete portfolio:
- * - SOL balance (from Helius RPC)
+ * - ETH balance (from Robinhood Chain)
  * - Open positions summary
  * - Total P&L
  * - Trade count
@@ -26,21 +25,12 @@ router.get('/', verifyWalletSignature, async (req, res) => {
     const userId = authReq.userId!;
     const wallet = authReq.wallet!;
 
-    // Fetch SOL balance from Helius
-    let balanceLamports = 0;
+    // Fetch ETH balance from Robinhood Chain
+    let balanceLamports = 0n; // wei (legacy field name)
     try {
-      const rpcRes = await fetch(HELIUS_RPC, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'getBalance',
-          params: [wallet],
-        }),
-      });
-      const rpcData = await rpcRes.json() as any;
-      balanceLamports = rpcData?.result?.value || 0;
+      if (/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
+        balanceLamports = await getEthBalance(wallet);
+      }
     } catch {
       // RPC error — return 0 balance
     }
@@ -79,7 +69,7 @@ router.get('/', verifyWalletSignature, async (req, res) => {
       wallet: {
         address: wallet,
         balanceLamports: String(balanceLamports),
-        balanceSol: (balanceLamports / 1e9).toFixed(4),
+        balanceSol: (Number(balanceLamports) / 1e18).toFixed(6),
       },
       positions: {
         open: openPositions.length,

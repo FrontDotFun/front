@@ -9,7 +9,7 @@ export const Burns: FC = () => {
   const [activeTab, setActiveTab] = useState<'burns' | 'locks'>('burns');
 
   const burnRate = burns.length > 1
-    ? (totalBurned / burns.length) / 1e9
+    ? (totalBurned / burns.length) / 1e18
     : 0;
 
   return (
@@ -19,25 +19,25 @@ export const Burns: FC = () => {
         <div className="card">
           <div className="stat">
             <span className="stat-label">Total Burned</span>
-            <span className="stat-value mono text-yellow">{formatNumber(totalBurnedSol)} SOL</span>
+            <span className="stat-value mono text-yellow">{formatNumber(totalBurnedSol)} ETH</span>
           </div>
         </div>
         <div className="card">
           <div className="stat">
             <span className="stat-label">Total Locked</span>
-            <span className="stat-value mono">{formatNumber(totalLockedSol)} SOL</span>
+            <span className="stat-value mono">{formatNumber(totalLockedSol)} ETH</span>
           </div>
         </div>
         <div className="card">
           <div className="stat">
             <span className="stat-label">Avg Burn / Trade</span>
-            <span className="stat-value mono text-green">{burnRate.toFixed(3)} SOL</span>
+            <span className="stat-value mono text-green">{burnRate.toFixed(4)} ETH</span>
           </div>
         </div>
         <div className="card">
           <div className="stat">
             <span className="stat-label">Creator Payouts</span>
-            <span className="stat-value mono text-blue">{formatNumber(totalCreatorPayoutsSol)} SOL</span>
+            <span className="stat-value mono text-blue">{formatNumber(totalCreatorPayoutsSol)} ETH</span>
           </div>
         </div>
       </div>
@@ -75,7 +75,7 @@ export const Burns: FC = () => {
                 <thead>
                   <tr>
                     <th>Token</th>
-                    <th>Amount (SOL)</th>
+                    <th>Amount (ETH)</th>
                     <th>$SCALE Burned</th>
                     <th className="text-right">Time</th>
                     <th className="text-right">TX</th>
@@ -113,17 +113,17 @@ export const Burns: FC = () => {
                   <span className="stat-value mono">{lockStats.activeLockCount}</span>
                 </div>
                 <div className="stat">
-                  <span className="stat-label">Locked SOL</span>
+                  <span className="stat-label">Locked ETH</span>
                   <span className="stat-value mono">{formatSol(BigInt(lockStats.totalLocked.solAmount || '0'), 4)}</span>
                 </div>
                 <div className="stat">
-                  <span className="stat-label">Unlocked SOL</span>
+                  <span className="stat-label">Unlocked ETH</span>
                   <span className="stat-value mono text-green">{formatSol(BigInt(lockStats.totalUnlocked.solAmount || '0'), 4)}</span>
                 </div>
               </div>
               {lockStats.upcoming7d.count > 0 && (
                 <div style={{ fontSize: '0.86rem', color: '#93a89a' }}>
-                  {lockStats.upcoming7d.count} lock{lockStats.upcoming7d.count > 1 ? 's' : ''} unlocking in the next 7 days ({formatSol(BigInt(lockStats.upcoming7d.solAmount || '0'), 4)} SOL)
+                  {lockStats.upcoming7d.count} lock{lockStats.upcoming7d.count > 1 ? 's' : ''} unlocking in the next 7 days ({formatSol(BigInt(lockStats.upcoming7d.solAmount || '0'), 4)} ETH)
                 </div>
               )}
             </div>

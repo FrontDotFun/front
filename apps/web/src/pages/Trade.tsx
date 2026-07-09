@@ -197,7 +197,8 @@ export const Trade: FC = () => {
     setOptimisticState('submitting');
     setErrorMessage('');
     try {
-      const capitalLamports = String(Math.round(collateralSol * 1e9));
+      // micro-ETH precision then scale to wei — avoids float drift past 2^53
+      const capitalLamports = String(BigInt(Math.round(collateralSol * 1e6)) * 1_000_000_000_000n);
       await openPosition(
         selectedToken.address,
         capitalLamports,
@@ -249,7 +250,7 @@ export const Trade: FC = () => {
     if (optimisticState === 'submitting' || isOpening) return 'Opening...';
     if (optimisticState === 'success') return 'Position Opened ✓';
     if (optimisticState === 'error') return 'Failed — Retry';
-    return `Buy ${positionSize > 0 ? positionSize.toFixed(2) + ' SOL' : ''}`;
+    return `Buy ${positionSize > 0 ? positionSize.toFixed(3) + ' ETH' : ''}`;
   };
 
   // Time remaining — counts down live between position polls
@@ -334,7 +335,7 @@ export const Trade: FC = () => {
                         const livePnl = livePnLFor(pos);
                         const pnl = livePnl ?? 0;
                         const hasPnl = livePnl != null;
-                        const pnlSol = (pnl / 100) * Number(pos.userCapital || 0) / 1e9;
+                        const pnlSol = (pnl / 100) * Number(pos.userCapital || 0) / 1e18;
                         const timeLeft = getTimeLeft(pos);
                         const isExpanded = expandedPosition === pos.id;
                         const entryNum = parseFloat(pos.entryPrice ?? '0');
@@ -372,7 +373,7 @@ export const Trade: FC = () => {
                                     className="mono"
                                     style={{ color: pnl >= 0 ? 'var(--green)' : 'var(--red)', fontSize: 10, opacity: 0.7 }}
                                   >
-                                    {pnlSol >= 0 ? '+' : ''}{pnlSol.toFixed(4)} SOL
+                                    {pnlSol >= 0 ? '+' : ''}{pnlSol.toFixed(4)} ETH
                                   </span>
                                 </div>
                               ) : (
@@ -434,7 +435,7 @@ export const Trade: FC = () => {
                                 className="mono"
                                 style={{ color: profit >= 0 ? 'var(--green)' : 'var(--red)' }}
                               >
-                                {profit >= 0 ? '+' : ''}{profit.toFixed(4)} SOL
+                                {profit >= 0 ? '+' : ''}{profit.toFixed(4)} ETH
                               </span>
                             </td>
                             <td>
@@ -528,7 +529,7 @@ export const Trade: FC = () => {
                     <label className="exec-label">Collateral</label>
                     {walletBalance && (
                       <span style={{ fontSize: 11, color: '#93a89a', fontFamily: 'var(--font-mono)' }}>
-                        Balance: <span style={{ color: 'var(--primary)' }}>{parseFloat(walletBalance).toFixed(4)}</span> SOL
+                        Balance: <span style={{ color: 'var(--primary)' }}>{parseFloat(walletBalance).toFixed(4)}</span> ETH
                       </span>
                     )}
                   </div>
@@ -542,7 +543,7 @@ export const Trade: FC = () => {
                       value={collateral}
                       onChange={(e) => setCollateral(e.target.value)}
                     />
-                    <span className="exec-input-unit">SOL</span>
+                    <span className="exec-input-unit">ETH</span>
                   </div>
                   <div className="exec-presets">
                     {['0.1', '0.25', '0.5', '1.0'].map((amt) => (
@@ -643,7 +644,7 @@ export const Trade: FC = () => {
                   <div className="exec-row">
                     <span>Position Size</span>
                     <div style={{ textAlign: 'right' }}>
-                      <span className="mono">{positionSize.toFixed(3)} SOL</span>
+                      <span className="mono">{positionSize.toFixed(4)} ETH</span>
                       {positionSizeUsd > 0 && (
                         <span className="mono" style={{ color: '#5c6b60', fontSize: 10, marginLeft: 4 }}>
                           (${positionSizeUsd.toFixed(2)})
@@ -653,11 +654,11 @@ export const Trade: FC = () => {
                   </div>
                   <div className="exec-row">
                     <span>Protocol Fills</span>
-                    <span className="mono" style={{ color: 'var(--primary)' }}>{protocolCapital.toFixed(3)} SOL</span>
+                    <span className="mono" style={{ color: 'var(--primary)' }}>{protocolCapital.toFixed(4)} ETH</span>
                   </div>
                   <div className="exec-row">
                     <span>Fee (0.5%)</span>
-                    <span className="mono">{flatFee.toFixed(4)} SOL</span>
+                    <span className="mono">{flatFee.toFixed(5)} ETH</span>
                   </div>
                   <div className="exec-row">
                     <span>Liquidation</span>
@@ -747,7 +748,7 @@ export const Trade: FC = () => {
                   </div>
                   {tokenPositions.map((pos) => {
                     const pnl = pos.livePnLPercent ?? 0;
-                    const pnlSol = (pnl / 100) * Number(pos.userCapital || 0) / 1e9;
+                    const pnlSol = (pnl / 100) * Number(pos.userCapital || 0) / 1e18;
                     const entryNum = parseFloat(pos.entryPrice ?? '0');
                     const timeMs = pos.timeRemainingMs ?? 0;
                     const timeStr = timeMs <= 0 ? 'Expired' : formatCountdown(timeMs);
@@ -779,7 +780,7 @@ export const Trade: FC = () => {
                             <span className="mono" style={{
                               fontSize: 10, color: pnl >= 0 ? 'var(--green)' : 'var(--red)', opacity: 0.7
                             }}>
-                              ({pnlSol >= 0 ? '+' : ''}{pnlSol.toFixed(4)} SOL)
+                              ({pnlSol >= 0 ? '+' : ''}{pnlSol.toFixed(4)} ETH)
                             </span>
                           </div>
                           <div style={{ display: 'flex', gap: 12, fontSize: 10, color: '#5c6b60' }}>
@@ -856,11 +857,11 @@ export const Trade: FC = () => {
               <div className="confirm-body">
                 <div className="confirm-row">
                   <span>Collateral</span>
-                  <span className="mono">{collateralSol} SOL</span>
+                  <span className="mono">{collateralSol} ETH</span>
                 </div>
                 <div className="confirm-row">
                   <span>Position Size</span>
-                  <span className="mono">{positionSize.toFixed(3)} SOL {positionSizeUsd > 0 && `($${positionSizeUsd.toFixed(2)})`}</span>
+                  <span className="mono">{positionSize.toFixed(4)} ETH {positionSizeUsd > 0 && `($${positionSizeUsd.toFixed(2)})`}</span>
                 </div>
                 <div className="confirm-row">
                   <span>Leverage</span>
@@ -890,7 +891,7 @@ export const Trade: FC = () => {
                 <div className="confirm-divider" />
                 <div className="confirm-row">
                   <span>Fee (0.5%)</span>
-                  <span className="mono">{flatFee.toFixed(4)} SOL</span>
+                  <span className="mono">{flatFee.toFixed(5)} ETH</span>
                 </div>
                 <div className="confirm-row">
                   <span>Max Duration</span>
@@ -912,7 +913,7 @@ export const Trade: FC = () => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  Confirm Long {positionSize.toFixed(2)} SOL
+                  Confirm Long {positionSize.toFixed(3)} ETH
                 </motion.button>
               </div>
 

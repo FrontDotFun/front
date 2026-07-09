@@ -1,24 +1,42 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Lock Engine Worker
+// SCALE PROTOCOL — Lock Engine Worker (Robinhood Chain)
 // ──────────────────────────────────────────────
 //
-// Handles $FRONT profit locks: buys $FRONT with 30% of trading profit,
-// locks it for 7 days, and processes unlock checks hourly.
+// Handles $SCALE profit locks: buys $SCALE with 30% of trading profit,
+// locks it for 7 days (protocol wallet is the escrow, DB enforces the
+// hold), and processes unlock checks hourly. No simulation mode — if
+// the $SCALE token isn't configured, jobs fail loudly and stay visible
+// in the queue instead of writing fake records.
 //
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL, PROFIT_LOCK_DURATION_MS, formatSol } from '@front-protocol/core';
-import { getProtocolWallet, swapSolToToken } from '@front-protocol/solana';
+import { PROFIT_LOCK_DURATION_MS } from '@front-protocol/core';
+import {
+  getProtocolAccount,
+  hasEvmProtocolKey,
+  swapEthForToken,
+  erc20Balance,
+  erc20Transfer,
+} from '@front-protocol/evm';
+import { getTokenPricesEth } from './evm-prices.js';
+
+const fmtEth = (wei: bigint): string => (Number(wei) / 1e18).toFixed(6);
 import { redisConnection, QUEUE_NAMES, lockQueue } from './queues.js';
 
 const PREFIX = '[lock-engine]';
 
-/** $FRONT token mint — used as output mint for Jupiter swap */
-const FRONT_TOKEN_MINT = process.env.FRONT_TOKEN_MINT ?? '';
+/** $SCALE token address (ERC-20 on Robinhood Chain) */
+const FRONT_TOKEN_MINT = (process.env.FRONT_TOKEN_MINT ?? '').trim();
 
-/** Default slippage tolerance for Jupiter swaps (300 bps = 3%) */
-const LOCK_SLIPPAGE_BPS = 300;
+function assertLockConfigured(): void {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(FRONT_TOKEN_MINT)) {
+    throw new Error(`${PREFIX} FRONT_TOKEN_MINT is not a Robinhood Chain (0x…) token address — cannot execute $SCALE locks`);
+  }
+  if (!hasEvmProtocolKey()) {
+    throw new Error(`${PREFIX} EVM protocol pool key not configured — cannot execute $SCALE locks`);
+  }
+}
 
 interface LockJobData {
   userWallet: string;
@@ -34,83 +52,79 @@ interface UnlockCheckJobData {
 type LockEngineJobData = LockJobData | UnlockCheckJobData;
 
 /**
- * Execute a Jupiter swap: SOL → $FRONT for the lock.
+ * Buy $SCALE with ETH via Uniswap V3 for the lock.
  *
- * @returns Transaction signature and number of $FRONT tokens purchased
+ * @returns Transaction hash and number of $SCALE tokens purchased
  */
 async function executeFrontBuy(solAmountLamports: bigint): Promise<{
   buyTx: string;
   tokensPurchased: bigint;
 }> {
-  // Simulation mode — FRONT_TOKEN_MINT not configured
-  if (!FRONT_TOKEN_MINT) {
-    console.warn(`${PREFIX} ⚠️  FRONT_TOKEN_MINT not set — running in simulation mode`);
-    const estimatedTokens = solAmountLamports * 500n;
-    return {
-      buyTx: `sim_front_buy_${Date.now()}`,
-      tokensPurchased: estimatedTokens,
-    };
+  assertLockConfigured();
+  const protocolAccount = getProtocolAccount();
+
+  console.log(
+    `${PREFIX} Buying $SCALE (${FRONT_TOKEN_MINT.substring(0, 10)}…) with ${fmtEth(solAmountLamports)} ETH via Uniswap V3`,
+  );
+
+  let minOut = 1n;
+  try {
+    const prices = await getTokenPricesEth([FRONT_TOKEN_MINT]);
+    const p = prices.get(FRONT_TOKEN_MINT.toLowerCase());
+    if (p && p.weiPerRawUnit > 0) {
+      const expected = BigInt(Math.floor(Number(solAmountLamports) / p.weiPerRawUnit));
+      const floor = (expected * 9_600n) / 10_000n; // 3% slippage + 1% pool fee
+      if (floor > 0n) minOut = floor;
+    }
+  } catch {
+    // price feed down — pool state is the fallback defense
   }
 
-  const protocolWallet = getProtocolWallet();
-
-  console.log(
-    `${PREFIX} Buying $FRONT (${FRONT_TOKEN_MINT.substring(0, 8)}…) with ${formatSol(solAmountLamports)} SOL via Jupiter`,
-  );
-
-  const { txSignature, tokensReceived } = await swapSolToToken(
-    solAmountLamports,
+  const { txHash, amountOut: tokensReceived } = await swapEthForToken(
+    protocolAccount,
     FRONT_TOKEN_MINT,
-    LOCK_SLIPPAGE_BPS,
-    protocolWallet,
+    solAmountLamports,
+    minOut,
   );
 
   console.log(
-    `${PREFIX} Buy complete: received ${tokensReceived} $FRONT (tx: ${txSignature})`,
+    `${PREFIX} Buy complete: received ${tokensReceived} $SCALE (tx: ${txHash})`,
   );
 
   return {
-    buyTx: txSignature,
+    buyTx: txHash,
     tokensPurchased: tokensReceived,
   };
 }
 
 /**
- * Lock the purchased $FRONT tokens by retaining them in the protocol wallet.
+ * Lock the purchased $SCALE tokens by retaining them in the protocol wallet.
  *
- * Since the Jupiter swap (executeFrontBuy) already deposits $FRONT into the
- * protocol wallet's ATA, "locking" just means verifying the tokens are there.
- * The protocol wallet IS the escrow — no custom Solana lock program needed.
- * The DB record (with `unlocksAt`) enforces the 7-day hold.
+ * The swap already deposits $SCALE into the protocol wallet, so "locking"
+ * means verifying the tokens are there. The protocol wallet IS the escrow —
+ * the DB record (with `unlocksAt`) enforces the 7-day hold.
  *
- * @returns Verification signature (same as the buy tx, since no separate lock tx)
+ * @returns Verification marker (no separate on-chain lock tx)
  */
 async function executeLock(
   userWallet: string,
   tokenAmount: bigint,
 ): Promise<string> {
-  if (!FRONT_TOKEN_MINT) {
-    console.warn(
-      `${PREFIX} ⚠️  FRONT_TOKEN_MINT not set — simulating lock for ${userWallet}`,
-    );
-    return `sim_lock_${userWallet}_${Date.now()}`;
-  }
+  assertLockConfigured();
 
   // Verify protocol wallet actually holds the tokens
-  const { getTokenBalance, PublicKey } = await import('@front-protocol/solana');
-  const protocolWallet = getProtocolWallet();
-  const mintPubkey = new PublicKey(FRONT_TOKEN_MINT);
-  const balance = await getTokenBalance(protocolWallet.publicKey, mintPubkey);
+  const protocolAccount = getProtocolAccount();
+  const balance = await erc20Balance(FRONT_TOKEN_MINT, protocolAccount.address);
 
   if (balance < tokenAmount) {
     throw new Error(
-      `${PREFIX} Protocol wallet $FRONT balance (${balance}) is less than lock amount (${tokenAmount}). ` +
-      `Jupiter swap may have failed silently.`,
+      `${PREFIX} Protocol wallet $SCALE balance (${balance}) is less than lock amount (${tokenAmount}). ` +
+      `Swap may have failed silently.`,
     );
   }
 
   console.log(
-    `${PREFIX} 🔒 Verified ${tokenAmount} $FRONT held in protocol wallet escrow for ${userWallet}`,
+    `${PREFIX} 🔒 Verified ${tokenAmount} $SCALE held in protocol wallet escrow for ${userWallet}`,
   );
 
   // No separate on-chain tx needed — the protocol wallet holds the tokens
@@ -119,43 +133,31 @@ async function executeLock(
 }
 
 /**
- * Release unlocked $FRONT tokens to the user's custodial wallet.
+ * Release unlocked $SCALE tokens to the user's custodial wallet via a
+ * standard ERC-20 transfer from the protocol wallet (escrow).
  *
- * Transfers $FRONT from the protocol wallet (escrow) to the user's wallet
- * using a standard SPL token transfer. The user can then hold, sell, or
- * transfer their $FRONT freely.
- *
- * @returns Transfer transaction signature
+ * @returns Transfer transaction hash
  */
 async function executeUnlock(
   userWallet: string,
   tokenAmount: bigint,
 ): Promise<string> {
-  if (!FRONT_TOKEN_MINT) {
-    console.warn(
-      `${PREFIX} ⚠️  FRONT_TOKEN_MINT not set — simulating unlock for ${userWallet}`,
-    );
-    return `sim_unlock_${userWallet}_${Date.now()}`;
-  }
-
-  const { transferToken, PublicKey } = await import('@front-protocol/solana');
-  const protocolWallet = getProtocolWallet();
-  const mintPubkey = new PublicKey(FRONT_TOKEN_MINT);
-  const userPubkey = new PublicKey(userWallet);
+  assertLockConfigured();
+  const protocolAccount = getProtocolAccount();
 
   console.log(
-    `${PREFIX} 🔓 Transferring ${tokenAmount} $FRONT to ${userWallet}`,
+    `${PREFIX} 🔓 Transferring ${tokenAmount} $SCALE to ${userWallet}`,
   );
 
-  const txSignature = await transferToken(
-    mintPubkey,
-    userPubkey,
+  const txSignature = await erc20Transfer(
+    protocolAccount,
+    FRONT_TOKEN_MINT,
+    userWallet,
     tokenAmount,
-    protocolWallet,
   );
 
   console.log(
-    `${PREFIX} 🔓 Unlock complete: ${tokenAmount} $FRONT → ${userWallet} (tx: ${txSignature})`,
+    `${PREFIX} 🔓 Unlock complete: ${tokenAmount} $SCALE → ${userWallet} (tx: ${txSignature})`,
   );
 
   return txSignature;
@@ -169,11 +171,11 @@ async function processLockJob(job: Job<LockJobData>): Promise<void> {
   const solAmount = BigInt(solAmountStr);
 
   console.log(
-    `${PREFIX} Processing lock: ${formatSol(solAmount)} SOL → $FRONT for wallet ${userWallet} (position #${positionId})`,
+    `${PREFIX} Processing lock: ${fmtEth(solAmount)} ETH → $SCALE for wallet ${userWallet} (position #${positionId})`,
   );
 
   try {
-    // Step 1: Buy $FRONT with the SOL amount
+    // Step 1: Buy $SCALE with the ETH amount
     const { buyTx, tokensPurchased } = await executeFrontBuy(solAmount);
 
     // Step 2: Lock the tokens
@@ -196,7 +198,7 @@ async function processLockJob(job: Job<LockJobData>): Promise<void> {
     });
 
     console.log(
-      `${PREFIX} 🔒 Locked ${tokensPurchased} $FRONT for ${userWallet} until ${unlocksAt.toISOString()} (buy: ${buyTx}, lock: ${lockTx})`,
+      `${PREFIX} 🔒 Locked ${tokensPurchased} $SCALE for ${userWallet} until ${unlocksAt.toISOString()} (buy: ${buyTx}, lock: ${lockTx})`,
     );
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -247,7 +249,7 @@ async function processUnlockCheck(_job: Job<UnlockCheckJobData>): Promise<void> 
 
         unlockedCount++;
         console.log(
-          `${PREFIX} 🔓 Unlocked ${lock.tokenAmount} $FRONT for ${lock.userWallet} (lock #${lock.id}, tx: ${unlockTx})`,
+          `${PREFIX} 🔓 Unlocked ${lock.tokenAmount} $SCALE for ${lock.userWallet} (lock #${lock.id}, tx: ${unlockTx})`,
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

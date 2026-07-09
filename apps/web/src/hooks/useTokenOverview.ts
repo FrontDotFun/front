@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { fetchTokenOverview, type TokenOverview } from '../lib/birdeye';
+import { fetchTokenOverview, type TokenOverview } from '../lib/marketdata';
 
 /**
- * Shared hook for Birdeye token overview data.
+ * Shared hook for token overview data (GeckoTerminal via our API).
  * Prevents duplicate API calls when multiple components need the same token data.
  * Polls every 15 seconds for fresh price data.
  */

@@ -136,7 +136,7 @@ export const Creator: FC = () => {
                   </div>
                   {Number(token.unclaimedEarnings) > 0 && (
                     <span className="badge badge-bonded" style={{ fontSize: 12 }}>
-                      {formatSol(BigInt(token.unclaimedEarnings), 3)} SOL unclaimed
+                      {formatSol(BigInt(token.unclaimedEarnings), 4)} ETH unclaimed
                     </span>
                   )}
                 </div>
@@ -184,7 +184,7 @@ export const Creator: FC = () => {
                     {payouts.map((payout) => (
                       <tr key={payout.id}>
                         <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{payout.token.symbol ?? formatAddress(payout.token.address, 4)}</td>
-                        <td className="mono" style={{ textAlign: 'right', color: 'var(--green)' }}>{formatSol(BigInt(payout.amount), 3)} SOL</td>
+                        <td className="mono" style={{ textAlign: 'right', color: 'var(--green)' }}>{formatSol(BigInt(payout.amount), 4)} ETH</td>
                         <td>
                           <span className={`badge ${payout.status === 'claimed' ? 'badge-bonded' : 'badge-rising'}`}>
                             {payout.status}

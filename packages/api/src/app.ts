@@ -30,7 +30,10 @@ export function createApp(): express.Express {
   app.use(
     cors({
       origin: process.env.NODE_ENV === 'production'
-        ? process.env.CORS_ORIGIN?.split(',') || ['https://www.front.fun', 'https://front.fun']
+        ? process.env.CORS_ORIGIN?.split(',') || [
+            'https://www.scale.fun', 'https://scale.fun',
+            'https://www.front.fun', 'https://front.fun',
+          ]
         : true,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

@@ -209,8 +209,8 @@ router.post('/admin/seed-pool', async (req, res) => {
 /**
  * POST /admin/fund-wallet
  *
- * Transfer SOL from the protocol wallet to a target address. Protected by ADMIN_SECRET.
- * Body: { destinationAddress: string, amountLamports: string }
+ * Transfer ETH from the protocol wallet to a target address. Protected by ADMIN_SECRET.
+ * Body: { destinationAddress: string, amountLamports: string }  (amount in wei)
  */
 router.post('/admin/fund-wallet', async (req, res) => {
   try {
@@ -224,11 +224,14 @@ router.post('/admin/fund-wallet', async (req, res) => {
       return res.status(400).json({ success: false, error: 'destinationAddress and amountLamports required' });
     }
 
-    const { getProtocolWallet, transferSol } = await import('@front-protocol/solana');
-    const protocolKeypair = getProtocolWallet();
+    const { getProtocolAccount, transferEth } = await import('@front-protocol/evm');
+    if (!/^0x[a-fA-F0-9]{40}$/.test(String(destinationAddress))) {
+      return res.status(400).json({ success: false, error: 'destinationAddress must be a 0x… EVM address' });
+    }
+    const protocolAccount = getProtocolAccount();
     const amount = BigInt(amountLamports);
 
-    const txSig = await transferSol(protocolKeypair, destinationAddress, amount);
+    const txSig = await transferEth(protocolAccount, destinationAddress, amount);
 
     sendSuccess(res, {
       message: 'Wallet funded',
@@ -322,36 +325,21 @@ router.post('/admin/reset-tokens', async (req, res) => {
         await prisma.token.update({ where: { address: tokenAddress }, data: { isActive: true } });
         sendSuccess(res, { message: 'Token reactivated', address: tokenAddress });
       } else {
-        // Fetch metadata from pump.fun
+        // Fetch metadata from GeckoTerminal (Robinhood Chain)
         let name = 'Unknown', symbol = '???', imageUri = '', creator = '', marketCap = 0;
+        let liquidity = 0;
         try {
-          const pumpRes = await fetch(`https://frontend-api-v3.pump.fun/coins/${tokenAddress}`);
-          if (pumpRes.ok) {
-            const pumpData = await pumpRes.json() as any;
-            name = pumpData.name || name;
-            symbol = pumpData.symbol || symbol;
-            imageUri = pumpData.image_uri || '';
-            creator = pumpData.creator || '';
-            marketCap = pumpData.usd_market_cap || pumpData.usdMarketCap || 0;
-          }
+          const { fetchToken } = await import('../lib/geckoterminal');
+          const gt = await fetchToken(tokenAddress);
+          name = gt.name !== 'Unknown' ? gt.name : name;
+          symbol = gt.symbol !== '???' ? gt.symbol : symbol;
+          imageUri = gt.logoURI || '';
+          marketCap = gt.marketCap;
+          liquidity = gt.liquidity;
         } catch { /* use defaults */ }
 
-        // Try DexScreener for image
-        try {
-          const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${tokenAddress}`);
-          if (dexRes.ok) {
-            const dexData = await dexRes.json() as any;
-            const pairs = dexData.pairs || [];
-            if (pairs.length > 0) {
-              const best = pairs.sort((a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
-              imageUri = best.info?.imageUrl || imageUri;
-              marketCap = best.marketCap || best.fdv || marketCap;
-            }
-          }
-        } catch { /* use pump image */ }
-
         const { determineTier } = await import('@front-protocol/core');
-        const tierConfig = determineTier(marketCap, marketCap * 0.1, false);
+        const tierConfig = determineTier(marketCap, liquidity || marketCap * 0.1, liquidity > 0);
         const tier = tierConfig ? tierConfig.tier : 'degen';
 
         const token = await prisma.token.create({

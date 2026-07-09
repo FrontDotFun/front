@@ -13,15 +13,10 @@ import {
   HistogramSeries,
   LineStyle,
 } from 'lightweight-charts';
-import { fetchOHLCV, BirdeyePriceStream, type OHLCVBar, type StreamStatus } from '../lib/birdeye';
+import { fetchOHLCV, fetchTopPool, PollingPriceStream, type OHLCVBar, type StreamStatus } from '../lib/marketdata';
 import { getVar, onThemeChange } from '../lib/theme';
 
-/** Map our interval keys to Birdeye WS chartType */
-const WS_CHART_TYPE: Record<string, string> = {
-  '1S': '1s', '5S': '5s', '15S': '15s', '30S': '30s',
-  '1': '1m', '3': '3m', '5': '5m', '15': '15m',
-  '30': '30m', '60': '1H', '240': '4H', 'D': '1D',
-};
+
 
 /** Position data for chart annotations */
 export interface ChartPosition {
@@ -43,18 +38,17 @@ interface PriceChartProps {
   onPrice?: (price: number) => void;
 }
 
-const TIMEFRAMES = ['1S', '5S', '15S', '30S', '1', '3', '5', '15', '30', '60', '240', 'D'] as const;
+// GeckoTerminal's floor is 1-minute candles — no seconds timeframes.
+const TIMEFRAMES = ['1', '5', '15', '60', '240', 'D'] as const;
 const TIMEFRAME_LABELS: Record<string, string> = {
-  '1S': '1s', '5S': '5s', '15S': '15s', '30S': '30s',
-  '1': '1m', '3': '3m', '5': '5m', '15': '15m',
-  '30': '30m', '60': '1H', '240': '4H', 'D': 'D',
+  '1': '1m', '5': '5m', '15': '15m',
+  '60': '1H', '240': '4H', 'D': 'D',
 };
 
 /** Duration in seconds for each interval */
 const INTERVAL_SECS: Record<string, number> = {
-  '1S': 1, '5S': 5, '15S': 15, '30S': 30,
-  '1': 60, '3': 180, '5': 300, '15': 900,
-  '30': 1800, '60': 3600, '240': 14400, 'D': 86400,
+  '1': 60, '5': 300, '15': 900,
+  '60': 3600, '240': 14400, 'D': 86400,
 };
 
 const fmtCompact = (v: number): string => {
@@ -68,9 +62,10 @@ const fmtCompact = (v: number): string => {
 };
 
 /**
- * Terminal trading chart — lightweight-charts + Birdeye.
- * Hardened: sanitized data, per-switch resets, honest empty/error
- * states, truthful stream badge, PRICE/MCAP unit toggle, theme-aware.
+ * Terminal trading chart — lightweight-charts + GeckoTerminal (via our
+ * API). Hardened: sanitized data, per-switch resets, honest empty/error
+ * states, truthful POLL badge (GT has no websocket), PRICE/MCAP unit
+ * toggle, theme-aware. Embed mode uses the GeckoTerminal pool widget.
  */
 export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, supply, onPrice }) => {
   const supplyRef = useRef(supply ?? 0);
@@ -87,9 +82,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
   };
 
   const [interval, setInterval_] = useState('1');
-  const [source, setSource] = useState<'birdeye-live' | 'birdeye-embed'>(
-    () => (import.meta.env.VITE_BIRDEYE_API_KEY ? 'birdeye-live' : 'birdeye-embed'),
-  );
+  const [source, setSource] = useState<'live' | 'embed'>('live');
+  const [embedPool, setEmbedPool] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dataState, setDataState] = useState<'ok' | 'empty' | 'error'>('ok');
   const [lastPrice, setLastPrice] = useState<number | null>(null);
@@ -103,16 +97,14 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
-  const streamRef = useRef<BirdeyePriceStream | null>(null);
+  const streamRef = useRef<PollingPriceStream | null>(null);
   const currentBarRef = useRef<OHLCVBar | null>(null);
   const barsRef = useRef<OHLCVBar[]>([]);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const unitRef = useRef(unit);
   useEffect(() => { unitRef.current = unit; }, [unit]);
 
-  const hasBirdeyeKey = !!import.meta.env.VITE_BIRDEYE_API_KEY;
-
-  /** Axis multiplier: mcap mode multiplies price by supply (pump.fun style) */
+  /** Axis multiplier: mcap mode multiplies price by supply (launchpad style) */
   const mult = () => (unitRef.current === 'mcap' && supplyRef.current > 0 ? supplyRef.current : 1);
 
   useEffect(() => onThemeChange(() => setThemeTick((v) => v + 1)), []);
@@ -260,7 +252,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
 
   /** Load data and start streaming */
   useEffect(() => {
-    if (!tokenAddress || source !== 'birdeye-live' || !hasBirdeyeKey) return;
+    if (!tokenAddress || source !== 'live') return;
 
     const candleSeries = candleSeriesRef.current;
     const volumeSeries = volumeSeriesRef.current;
@@ -334,10 +326,10 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
 
     loadData();
 
-    // Real-time stream with truthful status
-    const stream = new BirdeyePriceStream(
+    // Polling stream with truthful status (GT has no websocket)
+    const stream = new PollingPriceStream(
       tokenAddress,
-      WS_CHART_TYPE[interval] || '1m',
+      interval,
       (price, timestamp, serverBar) => {
         if (cancelled || !(price > 0)) return;
 
@@ -355,9 +347,9 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
         if (barStart < currentBarStart) return;
 
         if (serverBar) {
-          // Birdeye pushes the authoritative OHLCV bar for this
-          // interval on every trade — adopt it wholesale (real
-          // wicks + real volume, not client reconstruction)
+          // The poller returns the authoritative latest OHLCV bar —
+          // adopt it wholesale (real wicks + real volume, not client
+          // reconstruction)
           const adopted: OHLCVBar = {
             time: barStart,
             open: serverBar.o,
@@ -420,14 +412,23 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     };
     // `supply` dep: candles often load before token overview resolves —
     // when supply lands, reload once so axis units match the MC readout
-  }, [tokenAddress, interval, source, hasBirdeyeKey, unit, themeTick, retryTick, supply]);
+  }, [tokenAddress, interval, source, unit, themeTick, retryTick, supply]);
 
-  // Embed URL fallback
-  const embedUrl = tokenAddress
-    ? `https://birdeye.so/tv-widget/${tokenAddress}?chain=solana&viewMode=pair&chartInterval=${interval}&chartType=Candle&chartLeftToolbar=show&theme=dark`
+  // Embed fallback — GeckoTerminal pool widget (needs the pool address)
+  useEffect(() => {
+    if (source !== 'embed' || !tokenAddress) return;
+    let cancelled = false;
+    fetchTopPool(tokenAddress).then((pool) => {
+      if (!cancelled) setEmbedPool(pool);
+    });
+    return () => { cancelled = true; };
+  }, [source, tokenAddress]);
+
+  const embedUrl = embedPool
+    ? `https://www.geckoterminal.com/robinhood/pools/${embedPool}?embed=1&info=0&swaps=0&grayscale=0&light_chart=0`
     : null;
 
-  const showLiveChart = source === 'birdeye-live' && hasBirdeyeKey;
+  const showLiveChart = source === 'live';
   const hasMcap = (supply ?? 0) > 0;
   const streamBadge: Record<StreamStatus, { label: string; color: string }> = {
     connecting: { label: 'SYNC', color: 'var(--yellow)' },
@@ -525,39 +526,37 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
 
         {/* Stream + source */}
         <div style={{ display: 'flex', gap: 1, background: '#0a0e0b', borderRadius: 0, padding: 1 }}>
-          {hasBirdeyeKey && (
-            <button
-              onClick={() => setSource('birdeye-live')}
-              title={`Feed: ${badge.label}`}
-              style={{
-                padding: '2px 8px',
-                fontSize: 9,
-                fontWeight: 600,
-                color: source === 'birdeye-live' ? badge.color : '#2a3d2e',
-                background: source === 'birdeye-live' ? '#141c16' : 'transparent',
-                border: 'none',
-                borderRadius: 0,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 3,
-              }}
-            >
-              <span style={{
-                width: 4, height: 4, borderRadius: '50%',
-                background: source === 'birdeye-live' ? badge.color : '#2a3d2e',
-              }} />
-              {source === 'birdeye-live' ? badge.label : 'Live'}
-            </button>
-          )}
           <button
-            onClick={() => setSource('birdeye-embed')}
+            onClick={() => setSource('live')}
+            title={`Feed: ${badge.label}`}
             style={{
               padding: '2px 8px',
               fontSize: 9,
               fontWeight: 600,
-              color: source === 'birdeye-embed' ? 'var(--primary)' : '#2a3d2e',
-              background: source === 'birdeye-embed' ? '#141c16' : 'transparent',
+              color: source === 'live' ? badge.color : '#2a3d2e',
+              background: source === 'live' ? '#141c16' : 'transparent',
+              border: 'none',
+              borderRadius: 0,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+            }}
+          >
+            <span style={{
+              width: 4, height: 4, borderRadius: '50%',
+              background: source === 'live' ? badge.color : '#2a3d2e',
+            }} />
+            {source === 'live' ? badge.label : 'Chart'}
+          </button>
+          <button
+            onClick={() => setSource('embed')}
+            style={{
+              padding: '2px 8px',
+              fontSize: 9,
+              fontWeight: 600,
+              color: source === 'embed' ? 'var(--primary)' : '#2a3d2e',
+              background: source === 'embed' ? '#141c16' : 'transparent',
               border: 'none',
               borderRadius: 0,
               cursor: 'pointer',
@@ -598,7 +597,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             style={{
               position: 'absolute',
               inset: 0,
-              display: source === 'birdeye-live' ? 'block' : 'none',
+              display: source === 'live' ? 'block' : 'none',
             }}
           />
         )}
@@ -643,8 +642,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
           </div>
         )}
 
-        {/* Embed fallback */}
-        {source === 'birdeye-embed' && embedUrl && (
+        {/* Embed fallback — GeckoTerminal pool widget */}
+        {source === 'embed' && embedUrl && (
           <iframe
             key={embedUrl}
             src={embedUrl}
@@ -679,23 +678,6 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
           </div>
         )}
 
-        {/* No API key warning */}
-        {tokenAddress && !hasBirdeyeKey && source === 'birdeye-live' && (
-          <div style={{
-            position: 'absolute',
-            bottom: 12,
-            left: 12,
-            padding: '8px 12px',
-            background: '#1c261f',
-            border: '1px solid #2a3d2e',
-            borderRadius: 0,
-            fontSize: 11,
-            color: '#93a89a',
-            zIndex: 5,
-          }}>
-            Add VITE_BIRDEYE_API_KEY to .env for live 1s charts
-          </div>
-        )}
       </div>
 
       <style>{`

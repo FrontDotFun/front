@@ -23,9 +23,8 @@ const ENV_VARS: EnvVar[] = [
   // Auth
   { name: 'JWT_SECRET', required: true, description: 'JWT signing secret', sensitive: true },
 
-  // Solana
-  { name: 'SOLANA_RPC_URL', required: false, description: 'Private Solana RPC (Helius, Triton, etc.)' },
-  { name: 'SOLANA_CLUSTER', required: false, description: 'Solana cluster (mainnet-beta, devnet)' },
+  // Robinhood Chain
+  { name: 'ROBINHOOD_RPC_URL', required: false, description: 'Robinhood Chain RPC (defaults to the public mainnet RPC)' },
   { name: 'PROTOCOL_WALLET_PRIVATE_KEY', required: true, description: 'Protocol wallet private key', sensitive: true },
   { name: 'PROTOCOL_WALLET_PUBLIC_KEY', required: true, description: 'Protocol wallet public key' },
 
@@ -34,7 +33,6 @@ const ENV_VARS: EnvVar[] = [
 
   // External APIs
   { name: 'BIRDEYE_API_KEY', required: false, description: 'Birdeye API key for market data', sensitive: true },
-  { name: 'JUPITER_API_URL', required: false, description: 'Jupiter API endpoint' },
 
   // Telegram
   { name: 'TELEGRAM_BOT_TOKEN', required: false, description: 'Telegram bot token', sensitive: true },

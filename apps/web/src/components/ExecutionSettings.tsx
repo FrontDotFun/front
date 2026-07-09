@@ -2,13 +2,13 @@ import { type FC } from 'react';
 
 /**
  * Execution facts — every line here describes what the protocol
- * ACTUALLY does on-chain. No decorative toggles: swaps route through
- * Jupiter with a high priority fee and bounded slippage, and TP/SL
+ * ACTUALLY does on-chain. No decorative toggles: swaps execute on
+ * Uniswap V3 (Robinhood Chain) with bounded slippage, and TP/SL
  * levels are enforced server-side by the price monitor.
  */
 const FACTS: Array<{ label: string; value: string }> = [
-  { label: 'Route', value: 'Jupiter aggregator' },
-  { label: 'Priority fee', value: 'HIGH (auto, ≤0.001 SOL)' },
+  { label: 'Route', value: 'Uniswap V3 · SwapRouter02' },
+  { label: 'Gas', value: 'AUTO (Robinhood L2, ~$0.001)' },
   { label: 'Slippage', value: '1.5% max' },
   { label: 'Price impact guard', value: 'rejects >5%' },
   { label: 'TP / SL', value: 'enforced by price monitor' },

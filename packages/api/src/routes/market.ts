@@ -26,6 +26,28 @@ function validateTokenAddress(address: string): void {
 const TRENDING_CACHE_MS = 60_000;
 let trendingCache: { data: gt.MarketToken[]; at: number } | null = null;
 
+/** Tiny keyed TTL cache — GeckoTerminal free tier is ~30 calls/min,
+ *  so every fan-out endpoint (candles, trades, token) caches briefly
+ *  server-side instead of letting each browser hammer GT. */
+const ttlCache = new Map<string, { data: unknown; at: number }>();
+async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+  const hit = ttlCache.get(key);
+  if (hit && Date.now() - hit.at < ttlMs) return hit.data as T;
+  try {
+    const data = await fn();
+    ttlCache.set(key, { data, at: Date.now() });
+    if (ttlCache.size > 500) {
+      // evict oldest entries so the map can't grow unbounded
+      const oldest = [...ttlCache.entries()].sort((a, b) => a[1].at - b[1].at).slice(0, 100);
+      for (const [k] of oldest) ttlCache.delete(k);
+    }
+    return data;
+  } catch (err) {
+    if (hit) return hit.data as T; // stale-if-error
+    throw err;
+  }
+}
+
 /**
  * GET /market/trending — trending memecoins on Robinhood Chain.
  */
@@ -63,7 +85,7 @@ router.get('/token/:address', publicLimiter, async (req, res) => {
   try {
     const address = req.params.address as string;
     validateTokenAddress(address);
-    const t = await gt.fetchToken(address);
+    const t = await cached(`token:${address}`, 15_000, () => gt.fetchToken(address));
     sendSuccess(res, {
       address: t.address,
       name: t.name,
@@ -93,8 +115,37 @@ router.get('/token/:address/price-history', publicLimiter, async (req, res) => {
     validateTokenAddress(address);
     const type = (req.query.type as string) || '1H';
     const timeTo = req.query.time_to ? Number(req.query.time_to) : undefined;
-    const candles = await gt.fetchOHLCV(address, type, timeTo);
+    const key = `ohlcv:${address}:${type}:${timeTo ?? 'now'}`;
+    const candles = await cached(key, 10_000, () => gt.fetchOHLCV(address, type, timeTo));
     sendSuccess(res, candles);
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+/**
+ * GET /market/token/:address/trades — recent real swaps (top pool).
+ */
+router.get('/token/:address/trades', publicLimiter, async (req, res) => {
+  try {
+    const address = req.params.address as string;
+    validateTokenAddress(address);
+    const limit = Math.min(Number(req.query.limit) || 30, 100);
+    sendSuccess(res, await cached(`trades:${address}:${limit}`, 10_000, () => gt.fetchTrades(address, limit)));
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+/**
+ * GET /market/token/:address/pool — top Uniswap V3 pool address
+ * (used for the GeckoTerminal chart embed).
+ */
+router.get('/token/:address/pool', publicLimiter, async (req, res) => {
+  try {
+    const address = req.params.address as string;
+    validateTokenAddress(address);
+    sendSuccess(res, { pool: await cached(`pool:${address}`, 300_000, () => gt.topPoolFor(address)) });
   } catch (err) {
     sendError(res, err);
   }
@@ -107,7 +158,7 @@ router.get('/token/:address/price-history', publicLimiter, async (req, res) => {
 router.get('/reference-history', publicLimiter, async (req, res) => {
   try {
     const type = (req.query.type as string) || '15m';
-    const candles = await gt.fetchReferenceOHLCV(type);
+    const candles = await cached(`ref:${type}`, 30_000, () => gt.fetchReferenceOHLCV(type));
     sendSuccess(res, candles);
   } catch (err) {
     sendError(res, err);

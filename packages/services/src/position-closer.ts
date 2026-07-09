@@ -1,5 +1,5 @@
 // ──────────────────────────────────────────────
-// FRONT PROTOCOL — Position Closer Worker
+// SCALE PROTOCOL — Position Closer Worker (Robinhood Chain)
 // ──────────────────────────────────────────────
 //
 // Processes position close jobs: calculates final P&L, distributes revenue,
@@ -14,16 +14,16 @@ import {
   splitRevenue,
   calculateInsuranceDeposit,
   calculateInsuranceFundTarget,
-  LAMPORTS_PER_SOL,
-  formatSol,
   type Tier,
   type PositionStatus,
 } from '@front-protocol/core';
 import {
-  swapTokenToSol,
-  getProtocolWallet,
-  transferSol,
-} from '@front-protocol/solana';
+  swapTokenForEth,
+  getProtocolAccount,
+  hasEvmProtocolKey,
+  transferEth,
+} from '@front-protocol/evm';
+import { getTokenPricesEth } from './evm-prices.js';
 import {
   redisConnection,
   QUEUE_NAMES,
@@ -53,32 +53,51 @@ function determineStatus(
 }
 
 /**
- * Sell tokens back to SOL via Jupiter.
+ * Sell tokens back to ETH via Uniswap V3 on Robinhood Chain.
+ * Slippage floor comes from the GeckoTerminal price (3% for liquidation
+ * sells + 1% pool fee); if no live price, floor is minimal — the pool
+ * itself is the last line of defense.
  */
 async function executeTokenSell(
   tokenAddress: string,
   tokensBought: bigint,
 ): Promise<{ solReceived: bigint; txSignature: string }> {
-  const protocolWallet = getProtocolWallet();
+  if (!hasEvmProtocolKey()) {
+    throw new Error('Protocol pool wallet is not configured for Robinhood Chain — cannot sell');
+  }
+  const protocolAccount = getProtocolAccount();
 
   console.log(
-    `${PREFIX} Selling ${tokensBought} tokens of ${tokenAddress} via Jupiter`,
+    `${PREFIX} Selling ${tokensBought} tokens of ${tokenAddress} via Uniswap V3`,
   );
 
-  const result = await swapTokenToSol(
+  let minOutWei = 1n;
+  try {
+    const prices = await getTokenPricesEth([tokenAddress]);
+    const p = prices.get(tokenAddress.toLowerCase());
+    if (p && p.weiPerRawUnit > 0) {
+      const expectedWei = BigInt(Math.floor(Number(tokensBought) * p.weiPerRawUnit));
+      const floor = (expectedWei * 9_600n) / 10_000n; // 3% slippage + 1% pool fee
+      if (floor > 0n) minOutWei = floor;
+    }
+  } catch {
+    // price feed down — proceed with minimal floor rather than strand the position
+  }
+
+  const result = await swapTokenForEth(
+    protocolAccount,
     tokenAddress,
     tokensBought,
-    200, // 2% slippage for liquidation sells
-    protocolWallet,
+    minOutWei,
   );
 
   console.log(
-    `${PREFIX} Sell complete: received ${result.solReceived} lamports, tx=${result.txSignature}`,
+    `${PREFIX} Sell complete: received ${result.amountOut} wei, tx=${result.txHash}`,
   );
 
   return {
-    solReceived: result.solReceived,
-    txSignature: result.txSignature,
+    solReceived: result.amountOut,
+    txSignature: result.txHash,
   };
 }
 
@@ -86,8 +105,8 @@ async function executeTokenSell(
  * Process a position close job.
  *
  * Profit distribution:
- *   70% of profit → SOL directly to user
- *   30% of profit → auto-buy $FRONT, locked 7 days, claimable by user
+ *   70% of profit → ETH directly to user
+ *   30% of profit → auto-buy $SCALE, locked 7 days, claimable by user
  *
  * Protocol revenue = flat fee only (split: 30% creator, 20% burn, 50% pool)
  */
@@ -128,7 +147,7 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
     const protocolCapitalLamports = position.protocolCapital;
     const tier = position.tier as Tier;
 
-    // Sell tokens via Jupiter to get actual SOL back
+    // Sell tokens via Uniswap V3 to get actual ETH back
     const { solReceived, txSignature: closeTx } = await executeTokenSell(
       position.token.address,
       tokensBought,
@@ -167,15 +186,15 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
     // Determine final status
     const finalStatus = determineStatus(isProfitable, reason);
 
-    // Transfer user's SOL return to their wallet
+    // Transfer user's ETH return to their wallet
     if (userReturnLamports > 0n) {
       try {
-        const protocolWallet = getProtocolWallet();
-        await transferSol(protocolWallet, position.userWallet, userReturnLamports);
-        console.log(`${PREFIX} Returned ${Number(userReturnLamports) / 1e9} SOL to user ${position.userWallet}`);
+        const protocolAccount = getProtocolAccount();
+        await transferEth(protocolAccount, position.userWallet, userReturnLamports);
+        console.log(`${PREFIX} Returned ${Number(userReturnLamports) / 1e18} ETH to user ${position.userWallet}`);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`${PREFIX} CRITICAL: Failed to return SOL to user: ${msg}`);
+        console.error(`${PREFIX} CRITICAL: Failed to return ETH to user: ${msg}`);
         throw err; // Re-throw so BullMQ retries instead of silently losing user funds
       }
     }
@@ -220,7 +239,7 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
 
     // Dispatch downstream jobs
 
-    // Burn job — buy back & burn $FRONT with 20% of flat fee revenue
+    // Burn job — buy back & burn $SCALE with 20% of flat fee revenue
     if (burnAmountLamports > 0n) {
       await burnQueue.add(
         'burn-from-position',
@@ -235,7 +254,7 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
       );
     }
 
-    // Lock job — 30% of profit -> buy $FRONT & lock 7 days for user
+    // Lock job — 30% of profit -> buy $SCALE & lock 7 days for user
     if (isProfitable && userLockLamports > 0n) {
       await lockQueue.add(
         'lock-from-position',
@@ -303,8 +322,8 @@ async function processPositionClose(job: Job<PositionCloseJobData>): Promise<voi
     const elapsed = Date.now() - startTime;
     console.log(
       `${PREFIX} Position #${positionId} closed as ${finalStatus} | ` +
-        `P&L: ${formatSol(totalProfitLamports)} SOL | ` +
-        `Revenue: ${formatSol(flatFeeLamports)} SOL | ` +
+        `P&L: ${(Number(totalProfitLamports) / 1e18).toFixed(6)} ETH | ` +
+        `Revenue: ${(Number(flatFeeLamports) / 1e18).toFixed(6)} ETH | ` +
         `(${elapsed}ms)`,
     );
   } catch (err) {

@@ -4,12 +4,11 @@
 
 import { Router } from 'express';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL } from '@front-protocol/core';
 import {
-  getSolBalance,
-  loadBotWallet,
-  transferSol,
-} from '@front-protocol/solana';
+  getEthBalance,
+  loadCustodialWallet,
+  transferEth,
+} from '@front-protocol/evm';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { sendSuccess, sendError } from '../lib/response';
 import { ValidationError, NotFoundError, InsufficientFundsError } from '../lib/errors';
@@ -22,15 +21,15 @@ const BASE58_REGEX = /^[1-9A-HJ-NP-Za-km-z]+$/;
 /**
  * GET /wallet/balance
  *
- * Returns the authenticated user's custodial wallet SOL balance.
+ * Returns the authenticated user's custodial wallet ETH balance.
  */
 router.get('/balance', verifyWalletSignature, async (req, res) => {
   try {
     const authReq = req as AuthenticatedRequest;
     const walletAddress = authReq.wallet!;
 
-    const balanceLamports = await getSolBalance(walletAddress);
-    const balanceSol = (Number(balanceLamports) / Number(LAMPORTS_PER_SOL)).toFixed(9);
+    const balanceLamports = await getEthBalance(walletAddress);
+    const balanceSol = (Number(balanceLamports) / 1e18).toFixed(9);
 
     sendSuccess(res, {
       address: walletAddress,
@@ -45,9 +44,9 @@ router.get('/balance', verifyWalletSignature, async (req, res) => {
 /**
  * POST /wallet/withdraw
  *
- * Withdraw SOL from the user's custodial wallet to an external address.
+ * Withdraw ETH from the user's custodial wallet to an external address.
  * Requires JWT auth. Validates destination, amount, and sufficient balance
- * (keeping a 0.005 SOL reserve for transaction fees).
+ * (keeping a 0.005 ETH reserve for transaction fees).
  */
 router.post('/withdraw', verifyWalletSignature, async (req, res) => {
   try {
@@ -67,8 +66,6 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
     // ── Validate destination address format ──
     if (
       typeof destinationAddress !== 'string' ||
-      destinationAddress.length < 32 ||
-      destinationAddress.length > 44 ||
       !BASE58_REGEX.test(destinationAddress)
     ) {
       throw new ValidationError('Invalid destination address — must be 32-44 base58 characters');
@@ -85,15 +82,15 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
       throw new ValidationError('Amount must be positive');
     }
 
-    // ── Check balance (keep 0.005 SOL reserve for tx fees) ──
-    const TX_FEE_RESERVE = (LAMPORTS_PER_SOL * 5n) / 1000n; // 0.005 SOL
-    const currentBalance = await getSolBalance(walletAddress);
+    // ── Check balance (keep a small gas reserve — L2 gas is cheap but not free) ──
+    const TX_FEE_RESERVE = 50_000_000_000_000n; // 0.00005 ETH
+    const currentBalance = await getEthBalance(walletAddress);
 
     if (currentBalance < amount + TX_FEE_RESERVE) {
       throw new InsufficientFundsError(
-        `Not enough SOL to withdraw. Your balance is ${(Number(currentBalance) / 1e9).toFixed(4)} SOL ` +
-        `but you need ${(Number(amount) / 1e9).toFixed(4)} SOL plus a small fee reserve. ` +
-        `Deposit more SOL or reduce the withdrawal amount.`,
+        `Not enough ETH to withdraw. Your balance is ${(Number(currentBalance) / 1e18).toFixed(4)} ETH ` +
+        `but you need ${(Number(amount) / 1e18).toFixed(4)} ETH plus a small fee reserve. ` +
+        `Deposit more ETH or reduce the withdrawal amount.`,
       );
     }
 
@@ -106,10 +103,10 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
       throw new NotFoundError('User wallet');
     }
 
-    const userKeypair = loadBotWallet(user.encryptedKey);
+    const userAccount = loadCustodialWallet(user.encryptedKey);
 
     // ── Execute transfer ──
-    const txSignature = await transferSol(userKeypair, destinationAddress, amount);
+    const txSignature = await transferEth(userAccount, destinationAddress, amount);
 
     sendSuccess(res, {
       txSignature,
