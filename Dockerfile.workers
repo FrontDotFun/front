@@ -34,6 +34,16 @@ COPY packages/services/ packages/services/
 
 RUN cd packages/database && npx prisma generate
 
+# The Railway service's start command is `node packages/services/dist/scheduler.js`
+# (a dashboard setting that overrides this Dockerfile's CMD). Provide an ESM
+# shim at that exact path which boots tsx on the real source.
+RUN mkdir -p packages/services/dist && printf '%s\n' \
+  "import { spawn } from 'node:child_process';" \
+  "const p = spawn('tsx', ['packages/services/src/scheduler.ts'], { stdio: 'inherit', cwd: '/app' });" \
+  "p.on('exit', (code) => process.exit(code ?? 1));" \
+  "p.on('error', (err) => { console.error(err); process.exit(1); });" \
+  > packages/services/dist/scheduler.js
+
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--enable-source-maps"
 
