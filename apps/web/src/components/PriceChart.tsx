@@ -114,12 +114,12 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     if (!containerRef.current) return;
 
     const P = {
-      primary: getVar('--primary') || '#00c805',
-      primaryRgb: getVar('--primary-rgb') || '0, 200, 5',
-      bg: getVar('--bg-0') || '#060807',
-      text: getVar('--text-2') || '#5c6b60',
+      primary: getVar('--primary') || '#c8ff00',
+      primaryRgb: getVar('--primary-rgb') || '200, 255, 0',
+      bg: getVar('--bg-0') || '#060704',
+      text: getVar('--text-2') || '#67704f',
       grid: '#0d1420',
-      border: '#141c16',
+      border: '#161c0a',
     };
 
     const chart = createChart(containerRef.current, {
@@ -152,11 +152,11 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#00c805',
+      upColor: '#c8ff00',
       downColor: '#ff4d4d',
-      borderUpColor: '#00c805',
+      borderUpColor: '#c8ff00',
       borderDownColor: '#ff4d4d',
-      wickUpColor: '#00c80580',
+      wickUpColor: '#c8ff0080',
       wickDownColor: '#ff4d4d80',
       priceFormat: { type: 'custom', formatter: fmtCompact },
     });
@@ -226,7 +226,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     if (!positions || positions.length === 0) return;
 
     const m = mult();
-    const primary = getVar('--primary') || '#00c805';
+    const primary = getVar('--primary') || '#c8ff00';
 
     for (const pos of positions) {
       const mk = (price: number, color: string, style: LineStyle, title: string) => {
@@ -245,8 +245,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
         : '';
       mk(pos.entryPrice, primary, LineStyle.Dashed, `ENTRY${pnlTag}`);
       mk(pos.liquidationPrice, '#ff4d4d', LineStyle.Solid, 'LIQ');
-      mk(pos.takeProfitPrice ?? 0, '#00c805', LineStyle.Dashed, 'TP');
-      mk(pos.stopLossPrice ?? 0, '#b8ff5e', LineStyle.Dashed, 'SL');
+      mk(pos.takeProfitPrice ?? 0, '#c8ff00', LineStyle.Dashed, 'TP');
+      mk(pos.stopLossPrice ?? 0, '#eaff7a', LineStyle.Dashed, 'SL');
     }
   }, [positions, unit, themeTick, supply]);
 
@@ -283,7 +283,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       volumeSeries.setData(bars.map((b) => ({
         time: b.time as Time,
         value: b.volume,
-        color: b.close >= b.open ? '#00c80520' : '#ff4d4d20',
+        color: b.close >= b.open ? '#c8ff0020' : '#ff4d4d20',
       })) as HistogramData[]);
     };
 
@@ -390,7 +390,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
           volumeSeries.update({
             time: bar.time as Time,
             value: bar.volume,
-            color: bar.close >= bar.open ? '#00c80520' : '#ff4d4d20',
+            color: bar.close >= bar.open ? '#c8ff0020' : '#ff4d4d20',
           });
         } catch { /* series replaced mid-tick — safe to drop */ }
 
@@ -446,8 +446,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
         alignItems: 'center',
         gap: 2,
         padding: '4px 8px',
-        borderBottom: '1px solid #141c16',
-        background: '#080a08',
+        borderBottom: '1px solid #161c0a',
+        background: '#090b05',
         flexShrink: 0,
         overflowX: 'auto',
       }}>
@@ -460,7 +460,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
               fontSize: 10,
               fontWeight: 600,
               fontFamily: "'JetBrains Mono', monospace",
-              color: interval === tf ? 'var(--primary)' : '#3d4d40',
+              color: interval === tf ? 'var(--primary)' : '#4a5236',
               background: interval === tf ? 'rgba(var(--primary-rgb),0.07)' : 'transparent',
               border: '1px solid',
               borderColor: interval === tf ? 'rgba(var(--primary-rgb),0.15)' : 'transparent',
@@ -475,7 +475,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
 
         {/* Unit toggle — axis in market cap or token price */}
         {hasMcap && showLiveChart && (
-          <div style={{ display: 'flex', marginLeft: 8, border: '1px solid #1c261f' }}>
+          <div style={{ display: 'flex', marginLeft: 8, border: '1px solid #232b12' }}>
             {(['mcap', 'price'] as const).map((u) => (
               <button
                 key={u}
@@ -486,7 +486,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
                   fontWeight: 700,
                   letterSpacing: '0.08em',
                   fontFamily: "'JetBrains Mono', monospace",
-                  color: unit === u ? '#0a0a08' : '#5c6b60',
+                  color: unit === u ? '#0a0a08' : '#67704f',
                   background: unit === u ? 'var(--primary)' : 'transparent',
                   border: 'none',
                   cursor: 'pointer',
@@ -506,7 +506,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             <span style={{
               fontSize: 12,
               fontWeight: 700,
-              color: '#eef3ef',
+              color: '#f0f4e4',
               fontFamily: "'JetBrains Mono', monospace",
             }}>
               {unit === 'mcap' && hasMcap
@@ -516,7 +516,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             <span style={{
               fontSize: 10,
               fontWeight: 600,
-              color: priceChange >= 0 ? '#00c805' : '#ff4d4d',
+              color: priceChange >= 0 ? '#c8ff00' : '#ff4d4d',
               fontFamily: "'JetBrains Mono', monospace",
             }}>
               {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
@@ -525,7 +525,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
         )}
 
         {/* Stream + source */}
-        <div style={{ display: 'flex', gap: 1, background: '#0a0e0b', borderRadius: 0, padding: 1 }}>
+        <div style={{ display: 'flex', gap: 1, background: '#0b0d06', borderRadius: 0, padding: 1 }}>
           <button
             onClick={() => setSource('live')}
             title={`Feed: ${badge.label}`}
@@ -533,8 +533,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
               padding: '2px 8px',
               fontSize: 9,
               fontWeight: 600,
-              color: source === 'live' ? badge.color : '#2a3d2e',
-              background: source === 'live' ? '#141c16' : 'transparent',
+              color: source === 'live' ? badge.color : '#37421c',
+              background: source === 'live' ? '#161c0a' : 'transparent',
               border: 'none',
               borderRadius: 0,
               cursor: 'pointer',
@@ -545,7 +545,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
           >
             <span style={{
               width: 4, height: 4, borderRadius: '50%',
-              background: source === 'live' ? badge.color : '#2a3d2e',
+              background: source === 'live' ? badge.color : '#37421c',
             }} />
             {source === 'live' ? badge.label : 'Chart'}
           </button>
@@ -555,8 +555,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
               padding: '2px 8px',
               fontSize: 9,
               fontWeight: 600,
-              color: source === 'embed' ? 'var(--primary)' : '#2a3d2e',
-              background: source === 'embed' ? '#141c16' : 'transparent',
+              color: source === 'embed' ? 'var(--primary)' : '#37421c',
+              background: source === 'embed' ? '#161c0a' : 'transparent',
               border: 'none',
               borderRadius: 0,
               cursor: 'pointer',
@@ -568,7 +568,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       </div>
 
       {/* Chart area */}
-      <div style={{ flex: 1, position: 'relative', background: '#060807', minHeight: 0 }}>
+      <div style={{ flex: 1, position: 'relative', background: '#060704', minHeight: 0 }}>
         {loading && (
           <div style={{
             position: 'absolute',
@@ -582,7 +582,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             <div style={{
               width: 20,
               height: 20,
-              border: '2px solid #1c261f',
+              border: '2px solid #232b12',
               borderTopColor: 'var(--primary)',
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite',
@@ -613,18 +613,18 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             justifyContent: 'center',
             gap: 10,
             zIndex: 5,
-            background: '#060807',
+            background: '#060704',
           }}>
             <span style={{
               fontSize: 10,
               fontWeight: 800,
               letterSpacing: '0.3em',
-              color: dataState === 'error' ? '#ff4d4d' : '#5c6b60',
+              color: dataState === 'error' ? '#ff4d4d' : '#67704f',
               fontFamily: "'JetBrains Mono', monospace",
             }}>
               {dataState === 'error' ? '[ FEED ERROR ]' : `[ NO ${TIMEFRAME_LABELS[interval].toUpperCase()} CANDLES ]`}
             </span>
-            <span style={{ fontSize: 11, color: '#5c6b60' }}>
+            <span style={{ fontSize: 11, color: '#67704f' }}>
               {dataState === 'error'
                 ? 'Candle feed unreachable — retry or switch source'
                 : 'This token has no trades at this resolution'}
@@ -670,11 +670,11 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             height: '100%',
             gap: 8,
           }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#2a3d2e" strokeWidth="1.5">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#37421c" strokeWidth="1.5">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
-            <span style={{ fontSize: 13, color: '#5c6b60', fontWeight: 500 }}>Select a token to load chart</span>
-            <span style={{ fontSize: 11, color: '#2a3d2e' }}>Pick from the ticker bar or use Cmd+K</span>
+            <span style={{ fontSize: 13, color: '#67704f', fontWeight: 500 }}>Select a token to load chart</span>
+            <span style={{ fontSize: 11, color: '#37421c' }}>Pick from the ticker bar or use Cmd+K</span>
           </div>
         )}
 

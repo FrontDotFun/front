@@ -58,13 +58,13 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     ctx.strokeRect(1, 1, W - 2, H - 2);
 
     // Inner frame lines
-    ctx.strokeStyle = isProfit ? 'rgba(52, 211, 153, 0.08)' : 'rgba(239, 68, 68, 0.08)';
+    ctx.strokeStyle = isProfit ? 'rgba(200, 255, 0, 0.08)' : 'rgba(239, 68, 68, 0.08)';
     ctx.lineWidth = 1;
     ctx.strokeRect(12, 12, W - 24, H - 24);
 
     // Protocol branding — top left
     ctx.font = 'bold 16px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#eef3ef';
+    ctx.fillStyle = '#f0f4e4';
     ctx.fillText('SCALE', 28, 42);
     ctx.font = '12px "Inter", system-ui, sans-serif';
     ctx.fillStyle = '#66786a';
@@ -72,7 +72,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
 
     // Domain — top right
     ctx.font = '11px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#3d4d40';
+    ctx.fillStyle = '#4a5236';
     ctx.textAlign = 'right';
     ctx.fillText('scale.fun', W - 28, 42);
     ctx.textAlign = 'left';
@@ -87,16 +87,16 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
 
     // Token + Leverage
     ctx.font = 'bold 22px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#eef3ef';
+    ctx.fillStyle = '#f0f4e4';
     ctx.fillText(`${trade.token?.symbol ?? '???'}`, 28, 92);
     ctx.font = '16px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#93a89a';
+    ctx.fillStyle = '#a3ad8d';
     ctx.fillText(`${trade.leverage}x`, 28 + ctx.measureText(`${trade.token?.symbol ?? '???'}`).width + 12, 92);
 
     // Status badge
     ctx.font = 'bold 12px "Inter", system-ui, sans-serif';
     const statusText = trade.status === 'closed_profit' ? 'PROFIT' : trade.status === 'liquidated' ? 'LIQUIDATED' : 'LOSS';
-    ctx.fillStyle = isProfit ? '#00c805' : '#ff4d4d';
+    ctx.fillStyle = isProfit ? '#c8ff00' : '#ff4d4d';
     ctx.textAlign = 'right';
     ctx.fillText(statusText, W - 28, 92);
     ctx.textAlign = 'left';
@@ -104,12 +104,12 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     // Big ROI number
     const roiStr = `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%`;
     ctx.font = `bold 56px "Inter", system-ui, sans-serif`;
-    ctx.fillStyle = isProfit ? '#00c805' : '#ff4d4d';
+    ctx.fillStyle = isProfit ? '#c8ff00' : '#ff4d4d';
     ctx.fillText(roiStr, 28, 168);
 
     // PnL in ETH
     ctx.font = '18px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#93a89a';
+    ctx.fillStyle = '#a3ad8d';
     ctx.fillText(
       `${pnlSol >= 0 ? '+' : ''}${pnlSol.toFixed(4)} ETH`,
       28,
@@ -119,14 +119,14 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     // Bottom stats
     const statY = 240;
     ctx.font = '11px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#5c6b60';
+    ctx.fillStyle = '#67704f';
     ctx.fillText('CAPITAL', 28, statY);
     ctx.fillText('ENTRY', 160, statY);
     ctx.fillText('EXIT', 292, statY);
     ctx.fillText('TIER', 424, statY);
 
     ctx.font = '14px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#a6bcae';
+    ctx.fillStyle = '#b3bd97';
     ctx.fillText(`${capitalSol.toFixed(4)} ETH`, 28, statY + 20);
     ctx.fillText(entryPrice > 0 ? `$${entryPrice.toPrecision(6)}` : '—', 160, statY + 20);
     ctx.fillText(exitPrice > 0 ? `$${exitPrice.toPrecision(6)}` : '—', 292, statY + 20);
@@ -142,7 +142,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
 
     // Footer
     ctx.font = '10px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#2a3d2e';
+    ctx.fillStyle = '#37421c';
     ctx.fillText('Leveraged memecoin trading on Robinhood Chain', 28, 308);
     ctx.textAlign = 'right';
     ctx.fillText(new Date().toISOString().split('T')[0], W - 28, 308);

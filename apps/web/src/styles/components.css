@@ -327,7 +327,7 @@
   border: 1px solid;
 }
 
-.status-profit { color: var(--green); background: rgba(0, 200, 5, 0.06); border-color: rgba(0, 200, 5, 0.3); }
+.status-profit { color: var(--green); background: rgba(200, 255, 0, 0.06); border-color: rgba(200, 255, 0, 0.3); }
 .status-loss { color: var(--red); background: rgba(255, 77, 77, 0.06); border-color: rgba(255, 77, 77, 0.3); }
 
 .link-dim { font-size: 11px; color: var(--text-2); text-decoration: none; }
@@ -349,7 +349,7 @@
 
 .tier-dot { width: 5px; height: 5px; background: currentColor; }
 
-.tier-bonded { color: var(--green); border-color: rgba(0, 200, 5, 0.35); }
+.tier-bonded { color: var(--green); border-color: rgba(200, 255, 0, 0.35); }
 .tier-rising { color: var(--primary); border-color: rgba(var(--primary-rgb), 0.4); }
 .tier-degen { color: var(--red); border-color: rgba(255, 77, 77, 0.35); }
 .tier-blocked { color: var(--text-2); }
@@ -1821,9 +1821,9 @@
 
 .pos-row { transition: background 0.15s; }
 .pos-row:hover { background: var(--bg-2) !important; }
-.pos-row-profit { background: rgba(0, 200, 5, 0.02); }
+.pos-row-profit { background: rgba(200, 255, 0, 0.02); }
 .pos-row-loss { background: rgba(255, 77, 77, 0.02); }
-.pos-row-profit:hover { background: rgba(0, 200, 5, 0.05) !important; }
+.pos-row-profit:hover { background: rgba(200, 255, 0, 0.05) !important; }
 .pos-row-loss:hover { background: rgba(255, 77, 77, 0.05) !important; }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1831,9 +1831,9 @@
    ═══════════════════════════════════════════════════════════════ */
 
 .trades-feed-table { font-size: 11px; }
-.trade-row-buy { background: rgba(0, 200, 5, 0.02); }
+.trade-row-buy { background: rgba(200, 255, 0, 0.02); }
 .trade-row-sell { background: rgba(255, 77, 77, 0.02); }
-.trade-row-buy:hover { background: rgba(0, 200, 5, 0.05); }
+.trade-row-buy:hover { background: rgba(200, 255, 0, 0.05); }
 .trade-row-sell:hover { background: rgba(255, 77, 77, 0.05); }
 
 .trade-side-badge {
@@ -1846,7 +1846,7 @@
   border: 1px solid;
 }
 
-.trade-side-buy { color: var(--green); background: rgba(0, 200, 5, 0.07); border-color: rgba(0, 200, 5, 0.3); }
+.trade-side-buy { color: var(--green); background: rgba(200, 255, 0, 0.07); border-color: rgba(200, 255, 0, 0.3); }
 .trade-side-sell { color: var(--red); background: rgba(255, 77, 77, 0.07); border-color: rgba(255, 77, 77, 0.3); }
 
 /* ═══════════════════════════════════════════════════════════════

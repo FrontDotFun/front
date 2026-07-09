@@ -21,7 +21,7 @@ export const LiquidationBar: FC<LiquidationBarProps> = ({
 }) => {
   const { fillPercent, color, label, isProfit } = useMemo(() => {
     if (status !== 'open' || livePnlPercent == null) {
-      return { fillPercent: 0, color: '#2a3d2e', label: '--', isProfit: false };
+      return { fillPercent: 0, color: '#37421c', label: '--', isProfit: false };
     }
 
     const threshold = Math.abs(exitThresholdPct); // e.g., 15
@@ -32,7 +32,7 @@ export const LiquidationBar: FC<LiquidationBarProps> = ({
       const pct = (capped / (threshold * 2)) * 100;
       return {
         fillPercent: pct,
-        color: '#00c805',
+        color: '#c8ff00',
         label: `+${livePnlPercent.toFixed(1)}%`,
         isProfit: true,
       };
@@ -80,7 +80,7 @@ export const LiquidationBar: FC<LiquidationBarProps> = ({
       </div>
       <span
         className="liq-bar-label mono"
-        style={{ color: isProfit ? '#00c805' : color }}
+        style={{ color: isProfit ? '#c8ff00' : color }}
       >
         {label}
       </span>

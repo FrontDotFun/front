@@ -104,7 +104,7 @@ const MarketWall: FC = () => {
         candles.forEach((cd, i) => {
           const x = i * cw + cw / 2;
           const up = cd.c >= cd.o;
-          const col = up ? 'rgba(0, 200, 5, 0.20)' : 'rgba(255, 77, 77, 0.18)';
+          const col = up ? 'rgba(200, 255, 0, 0.20)' : 'rgba(255, 77, 77, 0.18)';
           ctx.strokeStyle = col;
           ctx.beginPath(); ctx.moveTo(x, yOf(cd.h)); ctx.lineTo(x, yOf(cd.l)); ctx.stroke();
           ctx.fillStyle = col;
@@ -441,8 +441,7 @@ export const Landing: FC = () => {
           <span className="lp-footer-dim">BUILT FOR DEGENS. THE POOL NEVER LOSES.</span>
         </div>
         <div className="lp-footer-links">
-          <a href="https://twitter.com/FrontDotFun" target="_blank" rel="noreferrer">TWITTER</a>
-          <a href="https://t.me/FrontProtocol" target="_blank" rel="noreferrer">TELEGRAM</a>
+          <a href="https://x.com/ScaleDotFun" target="_blank" rel="noreferrer">TWITTER</a>
           <a href="https://github.com/FrontDotFun/front" target="_blank" rel="noreferrer">GITHUB</a>
           <Link to="/docs">MANUAL</Link>
         </div>

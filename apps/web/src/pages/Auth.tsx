@@ -67,7 +67,7 @@ export const Auth: FC = () => {
   return (
     <div style={{
       minHeight: '100vh',
-      background: '#060807',
+      background: '#060704',
       display: 'flex',
       position: 'relative',
       overflow: 'hidden',
@@ -76,7 +76,7 @@ export const Auth: FC = () => {
       <div style={{
         position: 'absolute',
         inset: 0,
-        background: 'radial-gradient(ellipse at 30% 20%, rgba(0,200,5,0.04) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(0,200,5,0.04) 0%, transparent 60%)',
+        background: 'radial-gradient(ellipse at 30% 20%, rgba(200,255,0,0.04) 0%, transparent 60%), radial-gradient(ellipse at 70% 80%, rgba(200,255,0,0.04) 0%, transparent 60%)',
         pointerEvents: 'none',
       }} />
 
@@ -96,7 +96,7 @@ export const Auth: FC = () => {
               <path d="M2 17l10 5 10-5" />
               <path d="M2 12l10 5 10-5" />
             </svg>
-            <span style={{ fontSize: 20, fontWeight: 700, color: '#eef3ef', letterSpacing: '0.04em' }}>SCALE</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: '#f0f4e4', letterSpacing: '0.04em' }}>SCALE</span>
           </div>
         </Link>
 
@@ -108,7 +108,7 @@ export const Auth: FC = () => {
           <h1 style={{
             fontSize: '2.2rem',
             fontWeight: 800,
-            color: '#eef3ef',
+            color: '#f0f4e4',
             lineHeight: 1.2,
             marginBottom: 16,
           }}>
@@ -138,7 +138,7 @@ export const Auth: FC = () => {
                 <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', fontFamily: "'JetBrains Mono', monospace" }}>
                   {s.value}
                 </div>
-                <div style={{ fontSize: 11, color: '#5c6b60', marginTop: 4 }}>{s.label}</div>
+                <div style={{ fontSize: 11, color: '#67704f', marginTop: 4 }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -165,7 +165,7 @@ export const Auth: FC = () => {
             display: 'flex',
             gap: 0,
             marginBottom: 32,
-            borderBottom: '1px solid #1c261f',
+            borderBottom: '1px solid #232b12',
           }}>
             <button
               onClick={() => { setMode('login'); setError(''); }}
@@ -174,7 +174,7 @@ export const Auth: FC = () => {
                 padding: '12px 0',
                 fontSize: 14,
                 fontWeight: 600,
-                color: mode === 'login' ? '#eef3ef' : '#5c6b60',
+                color: mode === 'login' ? '#f0f4e4' : '#67704f',
                 background: 'none',
                 border: 'none',
                 borderBottom: mode === 'login' ? '2px solid var(--primary)' : '2px solid transparent',
@@ -191,7 +191,7 @@ export const Auth: FC = () => {
                 padding: '12px 0',
                 fontSize: 14,
                 fontWeight: 600,
-                color: mode === 'register' ? '#eef3ef' : '#5c6b60',
+                color: mode === 'register' ? '#f0f4e4' : '#67704f',
                 background: 'none',
                 border: 'none',
                 borderBottom: mode === 'register' ? '2px solid var(--primary)' : '2px solid transparent',
@@ -214,10 +214,10 @@ export const Auth: FC = () => {
               justifyContent: 'center',
               gap: 10,
               padding: '12px 16px',
-              background: '#0a0e0b',
-              border: '1px solid #1c261f',
+              background: '#0b0d06',
+              border: '1px solid #232b12',
               borderRadius: 0,
-              color: '#a6bcae',
+              color: '#b3bd97',
               fontSize: 13,
               fontWeight: 500,
               cursor: 'pointer',
@@ -225,12 +225,12 @@ export const Auth: FC = () => {
               marginBottom: 20,
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#2a3d2e';
+              e.currentTarget.style.borderColor = '#37421c';
               e.currentTarget.style.background = '#12110c';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#1c261f';
-              e.currentTarget.style.background = '#0a0e0b';
+              e.currentTarget.style.borderColor = '#232b12';
+              e.currentTarget.style.background = '#0b0d06';
             }}
           >
             <svg width="16" height="16" viewBox="0 0 24 24">
@@ -249,9 +249,9 @@ export const Auth: FC = () => {
             gap: 12,
             marginBottom: 20,
           }}>
-            <div style={{ flex: 1, height: 1, background: '#1c261f' }} />
-            <span style={{ fontSize: 11, color: '#3d4d40' }}>or</span>
-            <div style={{ flex: 1, height: 1, background: '#1c261f' }} />
+            <div style={{ flex: 1, height: 1, background: '#232b12' }} />
+            <span style={{ fontSize: 11, color: '#4a5236' }}>or</span>
+            <div style={{ flex: 1, height: 1, background: '#232b12' }} />
           </div>
 
           {/* Form */}
@@ -271,7 +271,7 @@ export const Auth: FC = () => {
             )}
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 11, color: '#5c6b60', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <label style={{ display: 'block', fontSize: 11, color: '#67704f', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Email
               </label>
               <input
@@ -284,22 +284,22 @@ export const Auth: FC = () => {
                 style={{
                   width: '100%',
                   padding: '12px 14px',
-                  background: '#0a0e0b',
-                  border: '1px solid #1c261f',
+                  background: '#0b0d06',
+                  border: '1px solid #232b12',
                   borderRadius: 0,
-                  color: '#eef3ef',
+                  color: '#f0f4e4',
                   fontSize: 13,
                   outline: 'none',
                   transition: 'border-color 0.2s',
                   boxSizing: 'border-box',
                 }}
                 onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb),0.25)'}
-                onBlur={(e) => e.currentTarget.style.borderColor = '#1c261f'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#232b12'}
               />
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <label style={{ display: 'block', fontSize: 11, color: '#5c6b60', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <label style={{ display: 'block', fontSize: 11, color: '#67704f', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Password
               </label>
               <input
@@ -311,23 +311,23 @@ export const Auth: FC = () => {
                 style={{
                   width: '100%',
                   padding: '12px 14px',
-                  background: '#0a0e0b',
-                  border: '1px solid #1c261f',
+                  background: '#0b0d06',
+                  border: '1px solid #232b12',
                   borderRadius: 0,
-                  color: '#eef3ef',
+                  color: '#f0f4e4',
                   fontSize: 13,
                   outline: 'none',
                   transition: 'border-color 0.2s',
                   boxSizing: 'border-box',
                 }}
                 onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb),0.25)'}
-                onBlur={(e) => e.currentTarget.style.borderColor = '#1c261f'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#232b12'}
               />
             </div>
 
             {mode === 'register' && (
               <div style={{ marginBottom: 12 }}>
-                <label style={{ display: 'block', fontSize: 11, color: '#5c6b60', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <label style={{ display: 'block', fontSize: 11, color: '#67704f', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                   Confirm Password
                 </label>
                 <input
@@ -339,17 +339,17 @@ export const Auth: FC = () => {
                   style={{
                     width: '100%',
                     padding: '12px 14px',
-                    background: '#0a0e0b',
-                    border: '1px solid #1c261f',
+                    background: '#0b0d06',
+                    border: '1px solid #232b12',
                     borderRadius: 0,
-                    color: '#eef3ef',
+                    color: '#f0f4e4',
                     fontSize: 13,
                     outline: 'none',
                     transition: 'border-color 0.2s',
                     boxSizing: 'border-box',
                   }}
                   onFocus={(e) => e.currentTarget.style.borderColor = 'rgba(var(--primary-rgb),0.25)'}
-                  onBlur={(e) => e.currentTarget.style.borderColor = '#1c261f'}
+                  onBlur={(e) => e.currentTarget.style.borderColor = '#232b12'}
                 />
               </div>
             )}
@@ -385,11 +385,11 @@ export const Auth: FC = () => {
           <div style={{
             marginTop: 24,
             padding: '14px 16px',
-            background: '#0a0e0b',
-            border: '1px solid #1c261f',
+            background: '#0b0d06',
+            border: '1px solid #232b12',
             borderRadius: 0,
           }}>
-            <div style={{ fontSize: 11, color: '#5c6b60', lineHeight: 1.6 }}>
+            <div style={{ fontSize: 11, color: '#67704f', lineHeight: 1.6 }}>
               {mode === 'register' ? (
                 <>A fresh Robinhood Chain wallet will be generated for your account. You can deposit ETH to start trading with leverage.</>
               ) : (

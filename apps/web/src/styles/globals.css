@@ -9,45 +9,45 @@
 /* ── CSS Custom Properties ──────────────────────────────────── */
 :root {
   /* Backgrounds — warm true black, like an off CRT */
-  --bg-0: #060807;
-  --bg-1: #0a0d0b;
-  --bg-2: #0d110e;
-  --bg-3: #0f1611;
-  --bg-4: #141c16;
+  --bg-0: #060704;
+  --bg-1: #0a0c06;
+  --bg-2: #0d1007;
+  --bg-3: #101408;
+  --bg-4: #161c0a;
 
   /* Panels */
-  --panel-bg: #0a0d0b;
-  --panel-bg-hover: #0c110d;
-  --panel-border: #1c261f;
-  --panel-border-hover: #2a3d2e;
+  --panel-bg: #0a0c06;
+  --panel-bg-hover: #0c0f07;
+  --panel-border: #232b12;
+  --panel-border-hover: #37421c;
   --panel-radius: 0px;
 
   /* Text — warm paper white → amber-tinted dims */
-  --text-0: #eef3ef;
-  --text-1: #93a89a;
-  --text-2: #5c6b60;
+  --text-0: #f0f4e4;
+  --text-1: #a3ad8d;
+  --text-2: #67704f;
 
   /* Primary accent — amber phosphor (P3). Overridden per theme below. */
-  --primary: #00c805;
-  --primary-rgb: 0, 200, 5;
-  --primary-dim: #009104;
+  --primary: #c8ff00;
+  --primary-rgb: 200, 255, 0;
+  --primary-dim: #8fb800;
   --primary-glow: rgba(var(--primary-rgb), 0.13);
   --primary-subtle: rgba(var(--primary-rgb), 0.07);
-  --primary-hover: #4de35a;
+  --primary-hover: #d9ff4d;
   --gold: var(--primary); /* legacy alias */
-  --chart-grid: #0f1611;
+  --chart-grid: #101408;
 
   /* Status — green/red phosphor */
-  --green: #00c805;
+  --green: #c8ff00;
   --red: #ff4d4d;
-  --yellow: #b8ff5e;
-  --cyan: #00c805;   /* legacy alias → green phosphor */
-  --blue: #00c805;   /* legacy alias */
+  --yellow: #eaff7a;
+  --cyan: #c8ff00;   /* legacy alias → green phosphor */
+  --blue: #c8ff00;   /* legacy alias */
   --magenta: #6b9fd4; /* legacy alias → phosphor orange */
 
   /* Borders */
-  --border: #1c261f;
-  --border-hover: #2a3d2e;
+  --border: #232b12;
+  --border-hover: #37421c;
   --border-active: rgba(var(--primary-rgb), 0.45);
 
   /* Fonts — ONE typeface. Commit. */
@@ -65,7 +65,7 @@
 
   /* Elevation / glow */
   --glow-primary: 0 0 0 1px rgba(var(--primary-rgb), 0.35), 0 0 24px rgba(var(--primary-rgb), 0.10);
-  --glow-green: 0 0 20px rgba(0, 200, 5, 0.15);
+  --glow-green: 0 0 20px rgba(200, 255, 0, 0.15);
   --glow-red: 0 0 20px rgba(255, 77, 77, 0.15);
   --shadow-panel: none;
 
@@ -398,7 +398,7 @@ p { color: var(--text-1); }
   text-transform: uppercase;
 }
 
-.badge-bonded { color: var(--green); background: rgba(0, 200, 5, 0.08); border: 1px solid rgba(0, 200, 5, 0.30); }
+.badge-bonded { color: var(--green); background: rgba(200, 255, 0, 0.08); border: 1px solid rgba(200, 255, 0, 0.30); }
 .badge-rising { color: var(--primary); background: var(--primary-subtle); border: 1px solid rgba(var(--primary-rgb), 0.35); }
 .badge-degen  { color: var(--red); background: rgba(255, 77, 77, 0.08); border: 1px solid rgba(255, 77, 77, 0.30); }
 

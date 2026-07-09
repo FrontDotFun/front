@@ -432,7 +432,7 @@
   cursor: grab;
 }
 
-.pg-slider-move { background: linear-gradient(to right, rgba(255, 77, 77,0.5), var(--bg-4) 33%, rgba(0, 200, 5,0.5)); }
+.pg-slider-move { background: linear-gradient(to right, rgba(255, 77, 77,0.5), var(--bg-4) 33%, rgba(200, 255, 0,0.5)); }
 
 .pg-out {
   display: flex;
@@ -491,9 +491,9 @@
 }
 
 .pg-win {
-  border-color: rgba(0, 200, 5, 0.4);
-  background: rgba(0, 200, 5, 0.05);
-  box-shadow: 0 0 30px rgba(0, 200, 5, 0.08) inset;
+  border-color: rgba(200, 255, 0, 0.4);
+  background: rgba(200, 255, 0, 0.05);
+  box-shadow: 0 0 30px rgba(200, 255, 0, 0.08) inset;
 }
 
 .pg-loss {
@@ -516,7 +516,7 @@
 .pg-rekt .pg-result-label { color: var(--red); }
 
 .pg-result-num { font-size: 2rem; font-weight: 800; }
-.pg-win .pg-result-num { color: var(--green); text-shadow: 0 0 18px rgba(0, 200, 5, 0.4); }
+.pg-win .pg-result-num { color: var(--green); text-shadow: 0 0 18px rgba(200, 255, 0, 0.4); }
 .pg-loss .pg-result-num { color: var(--yellow); }
 .pg-rekt .pg-result-num { color: var(--red); text-shadow: 0 0 18px rgba(255, 77, 77, 0.4); }
 

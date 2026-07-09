@@ -56,15 +56,15 @@ export const Explore: FC = () => {
   };
 
   const formatChange = (pct: number | undefined | null) => {
-    if (pct == null) return <span style={{ color: '#5c6b60' }}>--</span>;
-    const color = pct >= 0 ? '#00c805' : '#ff4d4d';
+    if (pct == null) return <span style={{ color: '#67704f' }}>--</span>;
+    const color = pct >= 0 ? '#c8ff00' : '#ff4d4d';
     const sign = pct >= 0 ? '+' : '';
     return <span style={{ color, fontWeight: 600 }}>{sign}{pct.toFixed(1)}%</span>;
   };
 
   const tierBadge = (tier: string) => {
     const tierMap: Record<string, { color: string; bg: string; label: string }> = {
-      bonded: { color: '#00c805', bg: 'rgba(0, 200, 5, 0.08)', label: 'Bonded' },
+      bonded: { color: '#c8ff00', bg: 'rgba(200, 255, 0, 0.08)', label: 'Bonded' },
       rising: { color: 'var(--primary)', bg: 'rgba(255, 179, 0, 0.06)', label: 'Rising' },
       degen: { color: '#ff4d4d', bg: 'rgba(255, 77, 77, 0.08)', label: 'Degen' },
     };
@@ -121,10 +121,10 @@ export const Explore: FC = () => {
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
           padding: '48px 16px', gap: 8,
         }}>
-          <div style={{ fontSize: 14, fontWeight: 500, color: '#93a89a' }}>
+          <div style={{ fontSize: 14, fontWeight: 500, color: '#a3ad8d' }}>
             {search ? 'No tokens found' : 'No tokens listed yet'}
           </div>
-          <div style={{ fontSize: 12, color: '#5c6b60' }}>
+          <div style={{ fontSize: 12, color: '#67704f' }}>
             {search ? 'Try a different search term or paste a token address' : 'Token creators can list tokens at /list'}
           </div>
         </div>
@@ -137,7 +137,7 @@ export const Explore: FC = () => {
               onClick={() => handleTokenClick(token)}
               style={{
                 background: 'linear-gradient(135deg, #0c0c0f 0%, #0a0a0d 100%)',
-                border: '1px solid #1c261f',
+                border: '1px solid #232b12',
                 borderRadius: 0,
                 padding: '20px',
                 cursor: 'pointer',
@@ -149,7 +149,7 @@ export const Explore: FC = () => {
                 e.currentTarget.style.boxShadow = '0 8px 24px rgba(255, 179, 0, 0.06)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#1c261f';
+                e.currentTarget.style.borderColor = '#232b12';
                 e.currentTarget.style.transform = 'none';
                 e.currentTarget.style.boxShadow = 'none';
               }}
@@ -166,7 +166,7 @@ export const Explore: FC = () => {
                   style={{
                     width: 42, height: 42, borderRadius: '50%',
                     objectFit: 'cover',
-                    border: '2px solid #1c261f',
+                    border: '2px solid #232b12',
                   }}
                   onError={(e) => {
                     const img = e.target as HTMLImageElement;
@@ -189,14 +189,14 @@ export const Explore: FC = () => {
                   display: 'none',
                   alignItems: 'center', justifyContent: 'center',
                   fontSize: 16, fontWeight: 700, color: 'var(--primary)',
-                  border: '2px solid #1c261f',
+                  border: '2px solid #232b12',
                   flexShrink: 0,
                 }}>
                   {token.symbol?.charAt(0) || '?'}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: '#eef3ef' }}>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: '#f0f4e4' }}>
                       {token.symbol || 'Unknown'}
                     </span>
                     {token.tier && tierBadge(token.tier)}
@@ -211,7 +211,7 @@ export const Explore: FC = () => {
                 {/* Price */}
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{
-                    fontSize: 14, fontWeight: 600, color: '#eef3ef',
+                    fontSize: 14, fontWeight: 600, color: '#f0f4e4',
                     fontFamily: "'JetBrains Mono', monospace",
                   }}>
                     {token.priceUsd != null
@@ -230,22 +230,22 @@ export const Explore: FC = () => {
                 paddingTop: 14, borderTop: '1px solid #141418',
               }}>
                 <div>
-                  <div style={{ fontSize: 10, color: '#5c6b60', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Volume</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#a6bcae', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div style={{ fontSize: 10, color: '#67704f', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Volume</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#b3bd97', fontFamily: "'JetBrains Mono', monospace" }}>
                     {token.totalTradingVolume && token.totalTradingVolume !== '0'
                       ? `${formatSol(token.totalTradingVolume)} ETH`
                       : '—'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 10, color: '#5c6b60', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Max Leverage</div>
+                  <div style={{ fontSize: 10, color: '#67704f', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Max Leverage</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', fontFamily: "'JetBrains Mono', monospace" }}>
                     {token.maxLeverage ? `${token.maxLeverage}x` : '—'}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 10, color: '#5c6b60', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fee</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#a6bcae', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div style={{ fontSize: 10, color: '#67704f', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Fee</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#b3bd97', fontFamily: "'JetBrains Mono', monospace" }}>
                     {token.flatFeePct ? `${token.flatFeePct}%` : '—'}
                   </div>
                 </div>
