@@ -6,6 +6,7 @@ import { Router } from 'express';
 import { prisma } from '@front-protocol/database';
 import { publicLimiter } from '../middleware/rateLimit';
 import { sendSuccess, sendError } from '../lib/response';
+import { getOnchainStats } from '../lib/onchain';
 
 const router = Router();
 
@@ -61,12 +62,23 @@ router.get('/stats', publicLimiter, async (req, res) => {
       prisma.token.count({ where: { isActive: true } }),
     ]);
 
+    // The chain is the source of truth for public-facing numbers.
+    // The DB ledger is internal accounting and can drift (e.g. funds
+    // moved without a ledger entry) — never show it as "the pool".
+    const onchain = await getOnchainStats();
+
     sendSuccess(res, {
       totalBurnedLamports: String(burnAgg._sum.solAmount ?? 0n),
       totalBurnedTokens: String(burnAgg._sum.tokenAmount ?? 0n),
       totalLockedLamports: String(lockAgg._sum.solAmount ?? 0n),
       totalLockedTokens: String(lockAgg._sum.tokenAmount ?? 0n),
-      poolSizeLamports: String(poolAgg._sum.amount ?? 0n),
+      poolSizeLamports: onchain?.poolWalletLamports ?? String(poolAgg._sum.amount ?? 0n),
+      poolLedgerLamports: String(poolAgg._sum.amount ?? 0n),
+      poolWalletAddress: onchain?.poolWalletAddress ?? null,
+      poolSourceOnchain: onchain != null,
+      frontLockedTokens: onchain?.frontLockedTokens ?? null,
+      frontTotalSupply: onchain?.frontTotalSupply ?? null,
+      frontLockedPct: onchain?.frontLockedPct ?? null,
       totalCreatorPayoutsLamports: String(creatorPayoutAgg._sum.amount ?? 0n),
       totalTradesExecuted: totalPositions,
       totalListedTokens,
@@ -87,8 +99,8 @@ router.get('/pool', publicLimiter, async (req, res) => {
   try {
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-    const [poolBalance, todayEntries, capitalLocked] = await Promise.all([
-      // Current total pool balance
+    const [poolBalance, todayEntries, capitalLocked, onchain] = await Promise.all([
+      // Ledger total (internal accounting)
       prisma.poolLedger.aggregate({
         _sum: { amount: true },
       }),
@@ -105,9 +117,13 @@ router.get('/pool', publicLimiter, async (req, res) => {
         where: { status: 'open' },
         _sum: { protocolCapital: true },
       }),
+      // Real wallet balance — the number users can verify on Solscan
+      getOnchainStats(),
     ]);
 
-    const balance = poolBalance._sum.amount ?? 0n;
+    const balance = onchain
+      ? BigInt(onchain.poolWalletLamports)
+      : (poolBalance._sum.amount ?? 0n);
     const lockedCapital = capitalLocked._sum.protocolCapital ?? 0n;
 
     // Separate inflows and outflows for today
@@ -133,6 +149,8 @@ router.get('/pool', publicLimiter, async (req, res) => {
 
     sendSuccess(res, {
       balance: String(balance),
+      balanceSourceOnchain: onchain != null,
+      ledgerBalance: String(poolBalance._sum.amount ?? 0n),
       lockedCapital: String(lockedCapital),
       availableCapital: String(balance > lockedCapital ? balance - lockedCapital : 0n),
       utilizationRate,

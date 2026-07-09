@@ -325,7 +325,15 @@ export interface ProtocolStatsResponse {
   totalBurnedTokens: string;
   totalLockedLamports: string;
   totalLockedTokens: string;
+  /** Real on-chain pool wallet balance (falls back to ledger if RPC down) */
   poolSizeLamports: string;
+  poolLedgerLamports?: string;
+  poolWalletAddress?: string | null;
+  poolSourceOnchain?: boolean;
+  /** $FRONT locked supply, read on-chain */
+  frontLockedTokens?: number | null;
+  frontTotalSupply?: number | null;
+  frontLockedPct?: number | null;
   totalCreatorPayoutsLamports: string;
   totalTradesExecuted: number;
   totalListedTokens: number;

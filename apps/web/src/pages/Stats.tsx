@@ -37,14 +37,44 @@ export const Stats: FC = () => {
         </div>
       )}
 
-      {/* Main Stats Grid */}
+      {/* Main Stats Grid — every number here is real; pool + locked
+          supply are read straight from the chain */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
         <div className="stat-card">
-          <div className="stat-card-label">Capital Pool</div>
+          <div className="stat-card-label">
+            Capital Pool {stats?.poolSourceOnchain && <span style={{ color: 'var(--green)' }}>· on-chain</span>}
+          </div>
           <div className="stat-card-value" style={{ color: 'var(--primary)' }}>
             {formatNumber(poolSizeSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
           </div>
-          <div className="stat-card-sub">Available for lending</div>
+          <div className="stat-card-sub">
+            {stats?.poolWalletAddress ? (
+              <a
+                className="link-dim"
+                href={`https://solscan.io/account/${stats.poolWalletAddress}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Live wallet balance — verify on Solscan ↗
+              </a>
+            ) : (
+              'Available for lending'
+            )}
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-card-label">
+            $FRONT Locked Supply {stats?.frontLockedPct != null && <span style={{ color: 'var(--green)' }}>· on-chain</span>}
+          </div>
+          <div className="stat-card-value" style={{ color: 'var(--primary)' }}>
+            {stats?.frontLockedPct != null ? `${stats.frontLockedPct.toFixed(2)}%` : '—'}
+          </div>
+          <div className="stat-card-sub">
+            {stats?.frontLockedTokens != null
+              ? `${formatNumber(stats.frontLockedTokens)} of ${formatNumber(stats.frontTotalSupply ?? 0)} $FRONT`
+              : 'Awaiting on-chain read'}
+          </div>
         </div>
 
         <div className="stat-card">
@@ -56,11 +86,11 @@ export const Stats: FC = () => {
         </div>
 
         <div className="stat-card">
-          <div className="stat-card-label">Insurance Fund</div>
+          <div className="stat-card-label">Profit Locks</div>
           <div className="stat-card-value">
-            — <span style={{ fontSize: '0.79rem' }}>SOL</span>
+            {formatNumber(totalLockedSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
           </div>
-          <div className="stat-card-sub">Edge case coverage</div>
+          <div className="stat-card-sub">30% of trade profits auto-locked 7d</div>
         </div>
 
         <div className="stat-card">
@@ -82,19 +112,11 @@ export const Stats: FC = () => {
         </div>
 
         <div className="stat-card">
-          <div className="stat-card-label">Total Volume</div>
+          <div className="stat-card-label">Creator Payouts</div>
           <div className="stat-card-value">
-            — <span style={{ fontSize: '0.79rem' }}>SOL</span>
+            {formatNumber(totalCreatorPayoutsSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
           </div>
-          <div className="stat-card-sub">Traded through protocol</div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card-label">$FRONT Locked</div>
-          <div className="stat-card-value">
-            {formatNumber(totalLockedSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
-          </div>
-          <div className="stat-card-sub">30% of profits auto-locked</div>
+          <div className="stat-card-sub">30% of fees, claimed by creators</div>
         </div>
       </div>
 
@@ -146,8 +168,7 @@ export const Stats: FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.86rem', color: 'var(--text-1)' }}>
           <div>• <strong>Auto-liquidation safety</strong> — positions auto-close before protocol capital is at risk, with a 5% safety buffer</div>
           <div>• <strong>No manual listing required</strong> — token listing is automatic and verifiable on-chain when creator rewards are redirected</div>
-          <div>• <strong>Insurance fund</strong> — covers edge cases from extreme slippage during liquidation</div>
-          <div>• <strong>On-chain verifiable</strong> — all fee sharing configs are immutable and transparent</div>
+          <div>• <strong>On-chain verifiable</strong> — the pool wallet and locked supply shown above are read live from the chain, not a database</div>
         </div>
       </div>
     </div>
