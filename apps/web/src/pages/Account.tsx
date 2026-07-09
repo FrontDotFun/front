@@ -2,6 +2,7 @@ import { type FC, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../providers/AuthProvider';
 import { useNavigate, Link } from 'react-router-dom';
 import * as api from '../lib/api';
+import { HoldingsPanel } from '../components/HoldingsPanel';
 import { formatSol, formatAddress, formatCountdown, formatTimeAgo, solscanTxUrl } from '../lib/format';
 
 // Normalize VITE_API_URL: strip trailing /api if present, then add /api
@@ -297,6 +298,12 @@ export const Account: FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* ═══ Holdings (merged from the old /portfolio page) ═══ */}
+      <div style={cardStyle}>
+        <div style={sectionLabel}>Holdings</div>
+        <HoldingsPanel />
       </div>
 
       {/* ═══ B) Locked $FRONT Section ═══ */}

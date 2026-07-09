@@ -1,43 +1,23 @@
 import { type FC, useState, useEffect } from 'react';
-import { useAuth } from '../providers/AuthProvider';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../lib/api';
-import { formatUsd } from '../lib/format';
 
-export const Portfolio: FC = () => {
-  const { isAuthenticated, user } = useAuth();
+/**
+ * Holdings — open positions, capital and performance. Lives inside
+ * the Account page (the old /portfolio route redirects there).
+ * Assumes the caller has already verified authentication.
+ */
+export const HoldingsPanel: FC = () => {
   const navigate = useNavigate();
   const [portfolio, setPortfolio] = useState<api.PortfolioData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated) return;
     api.getPortfolio()
       .then(setPortfolio)
       .catch(() => setPortfolio(null))
       .finally(() => setLoading(false));
-  }, [isAuthenticated]);
-
-  if (!isAuthenticated) {
-    return (
-      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 400, gap: 16 }}>
-        <h2>Sign in to view your portfolio</h2>
-        <button className="btn btn-primary" onClick={() => navigate('/auth')}>Sign In</button>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div className="skeleton" style={{ height: 120, borderRadius: 0 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
-          {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 90, borderRadius: 0 }} />)}
-        </div>
-        <div className="skeleton" style={{ height: 200, borderRadius: 0 }} />
-      </div>
-    );
-  }
+  }, []);
 
   const cardStyle = {
     background: '#0a0e14',
@@ -49,32 +29,21 @@ export const Portfolio: FC = () => {
   const statLabel = { fontSize: 11, color: '#52667d', marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
   const statValue = { fontSize: 20, fontWeight: 700 as const, color: '#e8f0fa', fontFamily: "'JetBrains Mono', monospace" };
 
-  return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <h2 style={{ marginBottom: 4 }}>Portfolio</h2>
-
-      {/* Wallet Card */}
-      <div style={cardStyle}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
-            <div style={statLabel}>Wallet Address</div>
-            <div style={{ fontSize: 13, color: '#a9c0d8', fontFamily: "'JetBrains Mono', monospace" }}>
-              {portfolio?.wallet.address
-                ? `${portfolio.wallet.address.slice(0, 6)}...${portfolio.wallet.address.slice(-4)}`
-                : '—'}
-            </div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div style={statLabel}>SOL Balance</div>
-            <div style={{ ...statValue, color: 'var(--primary)' }}>
-              {portfolio?.wallet.balanceSol || '0.0000'} SOL
-            </div>
-          </div>
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+          {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 90 }} />)}
         </div>
+        <div className="skeleton" style={{ height: 160 }} />
       </div>
+    );
+  }
 
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       {/* Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
         <div style={cardStyle}>
           <div style={statLabel}>Open Positions</div>
           <div style={statValue}>{portfolio?.positions.open || 0}</div>
@@ -115,7 +84,7 @@ export const Portfolio: FC = () => {
                 key={p.id}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 16px', background: '#070a0f', border: '1px solid #12110c',
+                  padding: '12px 16px', background: '#070a0f', border: '1px solid #141d2b',
                   borderRadius: 0, cursor: 'pointer',
                 }}
                 onClick={() => navigate(`/trade?token=${p.token.address}`)}
