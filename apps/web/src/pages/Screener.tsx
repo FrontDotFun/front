@@ -48,6 +48,7 @@ export const Screener: FC = () => {
   // Live market data — refresh every 30s
   useEffect(() => {
     let dead = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const load = () => {
       api.getMarketTrending()
         .then((data) => {
@@ -56,11 +57,16 @@ export const Screener: FC = () => {
           setUpdatedAt(new Date());
           setState('ready');
         })
-        .catch(() => { if (!dead && rows.length === 0) setState('offline'); });
+        .catch(() => {
+          if (dead) return;
+          if (rows.length === 0) setState('offline');
+          // feed hiccup (deploy rollover / upstream 429) — retry fast
+          retry = setTimeout(load, 5_000);
+        });
     };
     load();
     const t = setInterval(load, 30_000);
-    return () => { dead = true; clearInterval(t); };
+    return () => { dead = true; clearInterval(t); clearTimeout(retry); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

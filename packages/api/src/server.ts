@@ -2,6 +2,7 @@
 // FRONT PROTOCOL — Express API Server
 // ──────────────────────────────────────────────
 
+import './lib/sentry'; // must init before anything else
 import 'dotenv/config';
 import { validateEnv } from './lib/env';
 import { prisma } from '@front-protocol/database';

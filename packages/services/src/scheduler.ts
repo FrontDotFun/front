@@ -6,6 +6,7 @@
 // Run with: pnpm --filter @front-protocol/services dev
 //
 
+import './sentry.js'; // must init before anything else
 import 'dotenv/config';
 import type { Worker } from 'bullmq';
 import { redisConnection, allQueues, listingScanQueue, tokenDiscoveryQueue } from './queues.js';

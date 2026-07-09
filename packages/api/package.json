@@ -16,8 +16,9 @@
   "dependencies": {
     "@front-protocol/core": "workspace:*",
     "@front-protocol/database": "workspace:*",
-    "@front-protocol/services": "workspace:*",
     "@front-protocol/evm": "workspace:*",
+    "@front-protocol/services": "workspace:*",
+    "@sentry/node": "^10.64.0",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",

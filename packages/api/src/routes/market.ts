@@ -26,6 +26,32 @@ function validateTokenAddress(address: string): void {
 const TRENDING_CACHE_MS = 60_000;
 let trendingCache: { data: gt.MarketToken[]; at: number } | null = null;
 
+// ── Hot-feed warmer ─────────────────────────────────────────
+// The screener and landing hero are the first things every visitor
+// loads. Cold caches right after a deploy + GT free-tier 429s used to
+// surface as "FEED OFFLINE" flashes, so the server keeps these two
+// feeds perpetually warm itself (with jitter to dodge GT rate windows)
+// and clients only ever read from memory.
+async function warmHotFeeds(): Promise<void> {
+  try {
+    const data = await gt.fetchTrending();
+    if (data.length > 0) trendingCache = { data, at: Date.now() };
+  } catch (err) {
+    console.warn('[market] trending warm failed:', err instanceof Error ? err.message : err);
+  }
+  try {
+    const feed = await gt.fetchReferenceOHLCV('15m');
+    if (feed.candles.length > 0) ttlCache.set('ref:15m', { data: feed, at: Date.now() });
+  } catch (err) {
+    console.warn('[market] reference warm failed:', err instanceof Error ? err.message : err);
+  }
+}
+// warm immediately at boot, then refresh every 45s (±5s jitter)
+setTimeout(warmHotFeeds, 1_500);
+setInterval(() => {
+  setTimeout(warmHotFeeds, Math.random() * 10_000);
+}, 45_000).unref();
+
 /** Tiny keyed TTL cache — GeckoTerminal free tier is ~30 calls/min,
  *  so every fan-out endpoint (candles, trades, token) caches briefly
  *  server-side instead of letting each browser hammer GT. */
@@ -53,9 +79,9 @@ async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
  */
 router.get('/trending', publicLimiter, async (_req, res) => {
   try {
-    if (trendingCache && Date.now() - trendingCache.at < TRENDING_CACHE_MS) {
-      return sendSuccess(res, trendingCache.data);
-    }
+    // The warmer keeps this fresh; serve whatever we have (stale beats
+    // a 429 pass-through) and only call GT inline before the first warm
+    if (trendingCache) return sendSuccess(res, trendingCache.data);
     const data = await gt.fetchTrending();
     if (data.length > 0) trendingCache = { data, at: Date.now() };
     sendSuccess(res, data);
