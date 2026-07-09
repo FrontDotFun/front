@@ -349,22 +349,35 @@ export async function fetchPrice(tokenAddress: string): Promise<number | null> {
  */
 export type StreamStatus = 'connecting' | 'ws' | 'polling' | 'dead';
 
+/** Server-computed OHLCV bar pushed over the socket on every trade */
+export interface StreamBar {
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+  /** bar start time, unix seconds, aligned to the subscribed chartType */
+  time: number;
+}
+
 export class BirdeyePriceStream {
   private ws: WebSocket | null = null;
   private tokenAddress: string;
   private chartType: string;
-  private onUpdate: (price: number, timestamp: number) => void;
+  private onUpdate: (price: number, timestamp: number, bar?: StreamBar) => void;
   private onStatus?: (status: StreamStatus) => void;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private watchdogTimer: ReturnType<typeof setTimeout> | null = null;
   private alive = true;
+  private gotData = false;
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 10;
+  private maxReconnectAttempts = 6;
 
   constructor(
     tokenAddress: string,
     chartType: string,
-    onUpdate: (price: number, timestamp: number) => void,
+    onUpdate: (price: number, timestamp: number, bar?: StreamBar) => void,
     onStatus?: (status: StreamStatus) => void,
   ) {
     this.tokenAddress = tokenAddress;
@@ -375,6 +388,13 @@ export class BirdeyePriceStream {
 
   private setStatus(s: StreamStatus) {
     if (this.alive) this.onStatus?.(s);
+  }
+
+  private clearWatchdog() {
+    if (this.watchdogTimer) {
+      clearTimeout(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
   }
 
   async connect() {
@@ -401,11 +421,14 @@ export class BirdeyePriceStream {
     }
 
     try {
-      this.ws = new WebSocket(wsUrl);
+      // Birdeye's socket REQUIRES the 'echo-protocol' subprotocol.
+      // Without it the connection opens, replies "Invalid protocol"
+      // and never sends a single price — a silently dead "live" chart.
+      this.ws = new WebSocket(wsUrl, 'echo-protocol');
 
       this.ws.onopen = () => {
         this.reconnectAttempts = 0;
-        this.setStatus('ws');
+        this.gotData = false;
 
         // Subscribe to token price updates with correct chartType
         this.ws?.send(JSON.stringify({
@@ -417,6 +440,16 @@ export class BirdeyePriceStream {
             currency: 'usd',
           },
         }));
+
+        // Watchdog: if no data flows within 30s of opening, the sub
+        // is dead (wrong plan, dead token feed) — recycle the socket
+        // so the reconnect/polling ladder takes over. Note: an
+        // inactive token legitimately produces no ticks; polling
+        // keeps it honest either way.
+        this.clearWatchdog();
+        this.watchdogTimer = setTimeout(() => {
+          if (!this.gotData) this.ws?.close();
+        }, 30_000);
 
         // Start ping-pong keepalive (every 25 seconds)
         this.pingTimer = setInterval(() => {
@@ -430,17 +463,31 @@ export class BirdeyePriceStream {
         try {
           const msg = JSON.parse(event.data);
 
-          // Handle PONG
-          if (msg.type === 'PONG') return;
+          if (msg.type === 'PONG' || msg.type === 'WELCOME') return;
 
-          // Handle price data
+          // Server-side rejection (bad protocol/plan) — recycle
+          if (msg.type === 'ERROR') {
+            console.warn('[Birdeye WS] server error:', msg.data);
+            this.ws?.close();
+            return;
+          }
+
+          // Every trade pushes a server-computed OHLCV bar
           if (msg.type === 'PRICE_DATA' && msg.data) {
             const d = msg.data;
-            // The WS sends OHLCV candle data
             const price = d.c ?? d.close ?? d.value ?? d.price;
             const timestamp = d.unixTime ?? d.unix_time ?? Math.floor(Date.now() / 1000);
             if (price && typeof price === 'number') {
-              this.onUpdate(price, timestamp);
+              if (!this.gotData) {
+                this.gotData = true;
+                // LIVE means data is actually flowing, not just an open socket
+                this.setStatus('ws');
+              }
+              const bar: StreamBar | undefined =
+                typeof d.o === 'number' && typeof d.h === 'number' && typeof d.l === 'number'
+                  ? { o: d.o, h: d.h, l: d.l, c: price, v: d.vUsd ?? d.v ?? 0, time: timestamp }
+                  : undefined;
+              this.onUpdate(price, timestamp, bar);
             }
           }
         } catch {
@@ -450,6 +497,7 @@ export class BirdeyePriceStream {
 
       this.ws.onclose = () => {
         this.clearPing();
+        this.clearWatchdog();
         if (!this.alive) return;
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
           this.reconnectAttempts++;
@@ -503,6 +551,7 @@ export class BirdeyePriceStream {
   disconnect() {
     this.alive = false;
     this.clearPing();
+    this.clearWatchdog();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     if (this.pollingId) clearInterval(this.pollingId);
     this.ws?.close();

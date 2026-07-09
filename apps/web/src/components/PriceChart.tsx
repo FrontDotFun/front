@@ -321,7 +321,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     const stream = new BirdeyePriceStream(
       tokenAddress,
       WS_CHART_TYPE[interval] || '1m',
-      (price, timestamp) => {
+      (price, timestamp, serverBar) => {
         if (cancelled || !(price > 0)) return;
 
         setLastPrice(price);
@@ -336,7 +336,26 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
         // updates older than the last bar and corrupts the series
         if (barStart < currentBarStart) return;
 
-        if (barStart > currentBarStart) {
+        if (serverBar) {
+          // Birdeye pushes the authoritative OHLCV bar for this
+          // interval on every trade — adopt it wholesale (real
+          // wicks + real volume, not client reconstruction)
+          const adopted: OHLCVBar = {
+            time: barStart,
+            open: serverBar.o,
+            high: serverBar.h,
+            low: serverBar.l,
+            close: serverBar.c,
+            volume: serverBar.v,
+          };
+          currentBarRef.current = adopted;
+          const bars = barsRef.current;
+          if (bars.length > 0 && bars[bars.length - 1].time === barStart) {
+            bars[bars.length - 1] = adopted;
+          } else {
+            bars.push(adopted);
+          }
+        } else if (barStart > currentBarStart) {
           const newBar: OHLCVBar = {
             time: barStart, open: price, high: price, low: price, close: price, volume: 0,
           };
