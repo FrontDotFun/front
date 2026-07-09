@@ -1,10 +1,19 @@
 # ──────────────────────────────────────────────
-# FRONT PROTOCOL — Workers Dockerfile
+# SCALE PROTOCOL — Workers Dockerfile
 # ──────────────────────────────────────────────
-# Runs background services: price monitor, position closer,
-# burn engine, lock engine, creator payouts, listing scanner
+# Runs background services: price monitor (liquidations + TP/SL),
+# position closer, burn engine, lock engine, creator payouts,
+# listing scanner.
+#
+# Single-stage on purpose — mirrors the proven Dockerfile.api
+# pattern. pnpm workspaces resolve deps through per-package
+# node_modules symlinks into the root .pnpm store; multi-stage
+# copying breaks that unless every symlink dir is carried over.
 
-FROM node:20-slim AS builder
+FROM node:20-slim
+
+# openssl is required by Prisma on slim images
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
@@ -29,28 +38,6 @@ RUN pnpm -C packages/database build
 RUN pnpm -C packages/core build
 RUN pnpm -C packages/solana build
 RUN pnpm -C packages/services build
-
-# ── Production stage ──
-FROM node:20-slim
-
-RUN corepack enable && corepack prepare pnpm@9 --activate
-
-WORKDIR /app
-
-# Copy only built artifacts and production deps
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/packages/core/dist ./packages/core/dist
-COPY --from=builder /app/packages/core/package.json ./packages/core/
-COPY --from=builder /app/packages/database/dist ./packages/database/dist
-COPY --from=builder /app/packages/database/package.json ./packages/database/
-COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
-COPY --from=builder /app/packages/solana/dist ./packages/solana/dist
-COPY --from=builder /app/packages/solana/package.json ./packages/solana/
-COPY --from=builder /app/packages/services/dist ./packages/services/dist
-COPY --from=builder /app/packages/services/package.json ./packages/services/
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/pnpm-workspace.yaml ./
-COPY --from=builder /app/pnpm-lock.yaml ./
 
 ENV NODE_ENV=production
 ENV NODE_OPTIONS="--enable-source-maps"
