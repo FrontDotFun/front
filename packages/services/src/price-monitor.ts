@@ -139,6 +139,45 @@ async function processPriceCheckJob(job: Job<PriceCheckJobData>): Promise<void> 
           continue;
         }
 
+        // ── User take-profit / stop-loss (price move % vs entry) ──
+        const priceMovePct = ((currentPrice / entryPrice) - 1) * 100;
+        const tpPct = position.takeProfitPct != null ? Number(position.takeProfitPct) : null;
+        const slPct = position.stopLossPct != null ? Number(position.stopLossPct) : null;
+
+        if (tpPct != null && priceMovePct >= tpPct) {
+          await positionCloseQueue.add(
+            'close-position',
+            { positionId: position.id, reason: 'take_profit' },
+            {
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 5000 },
+              jobId: `close-take_profit-${position.id}`,
+            },
+          );
+          closedCount++;
+          console.log(
+            `${PREFIX} Position #${position.id} hit take-profit (+${priceMovePct.toFixed(2)}% ≥ +${tpPct}%) → queued for close`,
+          );
+          continue;
+        }
+
+        if (slPct != null && priceMovePct <= -slPct) {
+          await positionCloseQueue.add(
+            'close-position',
+            { positionId: position.id, reason: 'stop_loss' },
+            {
+              attempts: 3,
+              backoff: { type: 'exponential', delay: 5000 },
+              jobId: `close-stop_loss-${position.id}`,
+            },
+          );
+          closedCount++;
+          console.log(
+            `${PREFIX} Position #${position.id} hit stop-loss (${priceMovePct.toFixed(2)}% ≤ -${slPct}%) → queued for close`,
+          );
+          continue;
+        }
+
         // Check if approaching threshold (within WARNING_BUFFER_PCT)
         const currentPnlPct = calculateLivePnLPercent(entryPrice, currentPrice, leverage);
         const thresholdPct = exitThresholdBps / 100;

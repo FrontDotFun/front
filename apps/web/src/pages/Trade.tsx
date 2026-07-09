@@ -159,6 +159,8 @@ export const Trade: FC = () => {
       return {
         entryPrice: entry,
         liquidationPrice: entry > 0 ? entry * (1 + exitPct / (100 * pos.leverage)) : 0,
+        takeProfitPrice: entry > 0 && pos.takeProfitPct ? entry * (1 + pos.takeProfitPct / 100) : undefined,
+        stopLossPrice: entry > 0 && pos.stopLossPct ? entry * (1 - pos.stopLossPct / 100) : undefined,
         side: 'long' as const,
         leverage: pos.leverage,
         pnlPercent: livePnLFor(pos) ?? undefined,
@@ -196,7 +198,13 @@ export const Trade: FC = () => {
     setErrorMessage('');
     try {
       const capitalLamports = String(Math.round(collateralSol * 1e9));
-      await openPosition(selectedToken.address, capitalLamports, leverage);
+      await openPosition(
+        selectedToken.address,
+        capitalLamports,
+        leverage,
+        tpPct > 0 ? tpPct : undefined,
+        slPct > 0 ? slPct : undefined,
+      );
       setOptimisticState('success');
       setCollateral('');
       setTakeProfitPct('');
@@ -215,7 +223,7 @@ export const Trade: FC = () => {
       setOptimisticState('error');
       setTimeout(() => setOptimisticState('idle'), 6000);
     }
-  }, [selectedToken, collateralSol, leverage, isOpening, openPosition]);
+  }, [selectedToken, collateralSol, leverage, isOpening, openPosition, tpPct, slPct]);
 
   const handleBuyClick = useCallback(() => {
     if (!selectedToken || collateralSol <= 0) return;

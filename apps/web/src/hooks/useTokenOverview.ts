@@ -16,7 +16,9 @@ export function useTokenOverview(tokenAddress: string | undefined) {
     if (!addr) return;
     try {
       const data = await fetchTokenOverview(addr);
-      setOverview(data);
+      // Keep the last good overview on transient failures — a null
+      // here would blank the metrics bar and zero out PnL fallbacks
+      if (data) setOverview(data);
     } catch {
       // silent
     }

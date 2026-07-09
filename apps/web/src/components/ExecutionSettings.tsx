@@ -1,89 +1,28 @@
-import { type FC, useState } from 'react';
-
-interface ExecutionSettingsProps {
-  onMevChange?: (mevProtected: boolean) => void;
-  onPriorityChange?: (level: 'normal' | 'fast' | 'turbo') => void;
-}
+import { type FC } from 'react';
 
 /**
- * Execution settings panel: MEV Protection toggle + Priority Fee selector.
+ * Execution facts — every line here describes what the protocol
+ * ACTUALLY does on-chain. No decorative toggles: swaps route through
+ * Jupiter with a high priority fee and bounded slippage, and TP/SL
+ * levels are enforced server-side by the price monitor.
  */
-export const ExecutionSettings: FC<ExecutionSettingsProps> = ({
-  onMevChange,
-  onPriorityChange,
-}) => {
-  const [mevProtected, setMevProtected] = useState(true);
-  const [priority, setPriority] = useState<'normal' | 'fast' | 'turbo'>('fast');
+const FACTS: Array<{ label: string; value: string }> = [
+  { label: 'Route', value: 'Jupiter aggregator' },
+  { label: 'Priority fee', value: 'HIGH (auto, ≤0.001 SOL)' },
+  { label: 'Slippage', value: '1.5% max' },
+  { label: 'Price impact guard', value: 'rejects >5%' },
+  { label: 'TP / SL', value: 'enforced by price monitor' },
+];
 
-  const handleMevToggle = () => {
-    const next = !mevProtected;
-    setMevProtected(next);
-    onMevChange?.(next);
-  };
-
-  const handlePriority = (level: 'normal' | 'fast' | 'turbo') => {
-    setPriority(level);
-    onPriorityChange?.(level);
-  };
-
-  return (
-    <div className="exec-settings">
-      {/* MEV Protection */}
-      <div className="exec-settings-row">
-        <div className="exec-settings-left">
-          <div className="exec-settings-icon-svg">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          </div>
-          <div>
-            <span className="exec-settings-label">MEV Protection</span>
-            <span className="exec-settings-sub">
-              {mevProtected ? 'Secure via Jito' : 'Speed priority'}
-            </span>
-          </div>
-        </div>
-        <button
-          className={`toggle ${mevProtected ? 'toggle-on' : 'toggle-off'}`}
-          onClick={handleMevToggle}
-          type="button"
-          aria-label="Toggle MEV protection"
-        >
-          <span className="toggle-knob" />
-        </button>
+export const ExecutionSettings: FC = () => (
+  <div className="exec-settings">
+    {FACTS.map((f) => (
+      <div className="exec-settings-row" key={f.label}>
+        <span className="exec-settings-label" style={{ fontSize: 11, color: 'var(--text-2)' }}>
+          {f.label}
+        </span>
+        <span className="exec-settings-sub" style={{ marginTop: 0 }}>{f.value}</span>
       </div>
-
-      {/* Priority Fee */}
-      <div className="exec-settings-row">
-        <div className="exec-settings-left">
-          <div className="exec-settings-icon-svg">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
-              <polyline points="13 17 18 12 13 7" />
-              <polyline points="6 17 11 12 6 7" />
-            </svg>
-          </div>
-          <div>
-            <span className="exec-settings-label">Priority Fee</span>
-            <span className="exec-settings-sub">
-              {priority === 'normal' && '0.0001 SOL'}
-              {priority === 'fast' && '0.0005 SOL'}
-              {priority === 'turbo' && '0.005 SOL'}
-            </span>
-          </div>
-        </div>
-        <div className="priority-btns">
-          {(['normal', 'fast', 'turbo'] as const).map((level) => (
-            <button
-              key={level}
-              className={`priority-btn ${priority === level ? 'priority-btn-active' : ''}`}
-              onClick={() => handlePriority(level)}
-              type="button"
-            >
-              {level.charAt(0).toUpperCase() + level.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
+    ))}
+  </div>
+);

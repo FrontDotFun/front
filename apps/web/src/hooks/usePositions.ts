@@ -29,10 +29,18 @@ export function usePositions() {
   useEffect(() => { fetchedAtRef.current = Date.now(); }, [activeResult.data]);
 
   const openPosition = useCallback(
-    async (tokenAddress: string, capitalLamports: string, leverage: number) => {
+    async (
+      tokenAddress: string,
+      capitalLamports: string,
+      leverage: number,
+      takeProfitPct?: number,
+      stopLossPct?: number,
+    ) => {
       setIsOpening(true);
       try {
-        const position = await api.openPosition(tokenAddress, capitalLamports, leverage);
+        const position = await api.openPosition(
+          tokenAddress, capitalLamports, leverage, takeProfitPct, stopLossPct,
+        );
         activeResult.refetch();
         return position;
       } finally {

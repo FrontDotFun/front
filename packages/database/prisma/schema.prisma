@@ -65,6 +65,8 @@ model Position {
   exitPrice        Decimal?  @map("exit_price") @db.Decimal(20, 10)
   tokensBought     BigInt?   @map("tokens_bought")
   exitThreshold    Decimal   @map("exit_threshold") @db.Decimal(5, 2)
+  takeProfitPct    Decimal?  @map("take_profit_pct") @db.Decimal(7, 2) // price move % to auto-take-profit
+  stopLossPct      Decimal?  @map("stop_loss_pct") @db.Decimal(5, 2)   // price move % to auto-stop-loss
   slippageRisk     Int?      @map("slippage_risk")     // 0-100 risk score
   pnlSol           BigInt?   @map("pnl_sol")          // lamports (positive = profit)
   userProfit       BigInt?   @map("user_profit")       // user's 70% cash + 30% locked

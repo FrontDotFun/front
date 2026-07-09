@@ -37,7 +37,7 @@ const PREFIX = '[position-closer]';
 
 interface PositionCloseJobData {
   positionId: number;
-  reason: 'threshold' | 'timeout' | 'user';
+  reason: 'threshold' | 'timeout' | 'user' | 'take_profit' | 'stop_loss';
 }
 
 /**

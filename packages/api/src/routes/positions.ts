@@ -121,6 +121,26 @@ router.post(
       const flatFee = calculateFlatFee(positionSize, tier);
       const exitThreshold = getExitThresholdPercent(tier);
 
+      // ── Optional take-profit / stop-loss (price move %, vs entry) ──
+      const takeProfitPct = req.body.takeProfitPct != null ? Number(req.body.takeProfitPct) : null;
+      const stopLossPct = req.body.stopLossPct != null ? Number(req.body.stopLossPct) : null;
+      if (takeProfitPct != null && (!Number.isFinite(takeProfitPct) || takeProfitPct <= 0 || takeProfitPct > 100000)) {
+        throw new ValidationError('takeProfitPct must be a positive percentage');
+      }
+      // Liquidation fires at |exitThreshold| / leverage in price terms —
+      // a stop loss looser than that would never trigger
+      const liqPriceMovePct = Math.abs(Number(exitThreshold)) / Number(leverage);
+      if (stopLossPct != null) {
+        if (!Number.isFinite(stopLossPct) || stopLossPct <= 0 || stopLossPct >= 100) {
+          throw new ValidationError('stopLossPct must be between 0 and 100');
+        }
+        if (stopLossPct >= liqPriceMovePct) {
+          throw new ValidationError(
+            `Stop loss must be tighter than liquidation (−${liqPriceMovePct.toFixed(1)}% price move at ${leverage}x)`,
+          );
+        }
+      }
+
       // Safety validation — slippage risk + liquidity depth check
       // Fetch real SOL price and token liquidity
       let solPriceUsd = 150;
@@ -281,6 +301,8 @@ router.post(
             flatFee: flatFee,
             tier: tier,
             exitThreshold: exitThreshold,
+            takeProfitPct: takeProfitPct,
+            stopLossPct: stopLossPct,
             entryPrice: entryPrice,
             tokensBought: tokensBought,
             openTx: openTx,
@@ -592,6 +614,8 @@ router.get(
           tier: pos.tier,
           entryPrice: pos.entryPrice ? String(pos.entryPrice) : null,
           exitThreshold: String(pos.exitThreshold),
+          takeProfitPct: pos.takeProfitPct != null ? Number(pos.takeProfitPct) : null,
+          stopLossPct: pos.stopLossPct != null ? Number(pos.stopLossPct) : null,
           tokensBought: pos.tokensBought ? String(pos.tokensBought) : null,
           openedAt: pos.openedAt,
           timeRemainingMs,

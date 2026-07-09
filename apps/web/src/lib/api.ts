@@ -227,6 +227,8 @@ export interface PositionInfo {
   tier: string;
   entryPrice: string | null;
   exitThreshold: string;
+  takeProfitPct?: number | null;
+  stopLossPct?: number | null;
   tokensBought: string | null;
   openedAt: string;
   // Active position fields
@@ -281,10 +283,18 @@ export function openPosition(
   tokenAddress: string,
   capitalLamports: string,
   leverage: number,
+  takeProfitPct?: number,
+  stopLossPct?: number,
 ): Promise<PositionInfo> {
   return request('/positions/open', {
     method: 'POST',
-    body: JSON.stringify({ tokenAddress, capitalLamports, leverage }),
+    body: JSON.stringify({
+      tokenAddress,
+      capitalLamports,
+      leverage,
+      ...(takeProfitPct != null && takeProfitPct > 0 ? { takeProfitPct } : {}),
+      ...(stopLossPct != null && stopLossPct > 0 ? { stopLossPct } : {}),
+    }),
   });
 }
 
