@@ -22,10 +22,22 @@ printf "Paste the EVM private key (0x + 64 hex — input is hidden): "
 read -rs KEY
 printf "\n"
 
-# 2. Validate format locally
+# 2. Validate format locally — accept bare 64-hex (common export format)
+#    and auto-prepend the 0x prefix
+KEY="$(printf '%s' "$KEY" | tr -d '[:space:]')"
+if [[ "$KEY" =~ ^[0-9a-fA-F]{64}$ ]]; then
+  KEY="0x$KEY"
+fi
 if ! [[ "$KEY" =~ ^0x[0-9a-fA-F]{64}$ ]]; then
-  echo "❌ Not a valid EVM key. Expected 0x followed by exactly 64 hex characters."
-  echo "   (A Solana base58 key cannot be used on Robinhood Chain.)"
+  if [[ "$KEY" == *" "* ]]; then
+    echo "❌ That looks like a seed phrase. Export the account's raw PRIVATE KEY"
+    echo "   from your wallet (64 hex characters) and paste that instead."
+  elif [[ "$KEY" =~ ^[1-9A-HJ-NP-Za-km-z]{60,90}$ ]]; then
+    echo "❌ That looks like a Solana (base58) key — it cannot be used on"
+    echo "   Robinhood Chain. Export an EVM key (64 hex characters)."
+  else
+    echo "❌ Not a valid EVM key. Expected 64 hex characters (0x prefix optional)."
+  fi
   exit 1
 fi
 
