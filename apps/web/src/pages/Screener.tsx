@@ -129,7 +129,7 @@ export const Screener: FC = () => {
         <div>
           <h2>MARKET SCREENER</h2>
           <p className="scr-sub">
-            Live Solana trending — real Birdeye feed · refreshes every 30s ·{' '}
+            Trending memecoins — live DexScreener feed · refreshes every 30s ·{' '}
             <span className="text-primary">j/k</span> move · <span className="text-primary">↵</span> trade ·{' '}
             <span className="text-primary">s</span> sort
           </p>

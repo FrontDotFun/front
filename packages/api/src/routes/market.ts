@@ -93,13 +93,106 @@ const MAX_VOL_TO_LIQ = 40;
 const TRENDING_CACHE_MS = 120_000;
 let trendingCache: { data: TrendingToken[]; at: number } | null = null;
 
+/** Sanitized 24h change from a DexScreener pair — day-old pools report
+ *  "true" but useless h24 (+400000% from dust), step down to h6 then cap */
+function sanePctChange(h24: number, h6: number): number {
+  if (Math.abs(h24) <= 1000) return h24;
+  if (Math.abs(h6) <= 1000) return h6;
+  return Math.sign(h24) * 999.9;
+}
+
+/**
+ * Primary source: DexScreener's trending/boosted Solana tokens — the
+ * actual memecoin trenches, in DexScreener's own ranking order —
+ * enriched with real pair data and floored on liquidity so rugs with
+ * $3 pools don't make the wall.
+ */
+async function fetchDexscreenerTrending(): Promise<TrendingToken[]> {
+  const [topRes, latestRes] = await Promise.all([
+    fetch('https://api.dexscreener.com/token-boosts/top/v1'),
+    fetch('https://api.dexscreener.com/token-boosts/latest/v1'),
+  ]);
+  if (!topRes.ok) throw new Error(`dexscreener boosts: ${topRes.status}`);
+
+  type Boost = { chainId?: string; tokenAddress?: string; icon?: string };
+  const top = (await topRes.json()) as Boost[];
+  const latest = latestRes.ok ? ((await latestRes.json()) as Boost[]) : [];
+
+  const seen = new Set<string>();
+  const ordered: Boost[] = [];
+  for (const b of [...top, ...latest]) {
+    if (b.chainId !== 'solana' || !b.tokenAddress || seen.has(b.tokenAddress)) continue;
+    seen.add(b.tokenAddress);
+    ordered.push(b);
+    if (ordered.length >= 30) break;
+  }
+  if (ordered.length === 0) return [];
+
+  const addrs = ordered.map((b) => b.tokenAddress).join(',');
+  const pairsRes = await fetch(`https://api.dexscreener.com/tokens/v1/solana/${addrs}`);
+  if (!pairsRes.ok) throw new Error(`dexscreener pairs: ${pairsRes.status}`);
+  const pairs = (await pairsRes.json()) as Array<{
+    baseToken?: { address?: string; name?: string; symbol?: string };
+    priceUsd?: string;
+    liquidity?: { usd?: number };
+    volume?: { h24?: number };
+    priceChange?: { h24?: number; h6?: number };
+    info?: { imageUrl?: string };
+    marketCap?: number;
+    fdv?: number;
+  }>;
+
+  const best = new Map<string, (typeof pairs)[number]>();
+  for (const p of pairs || []) {
+    const addr = p.baseToken?.address;
+    if (!addr) continue;
+    const prev = best.get(addr);
+    if (!prev || (p.liquidity?.usd ?? 0) > (prev.liquidity?.usd ?? 0)) best.set(addr, p);
+  }
+
+  const out: TrendingToken[] = [];
+  for (const b of ordered) {
+    const p = best.get(b.tokenAddress!);
+    if (!p) continue;
+    const price = parseFloat(p.priceUsd ?? '0');
+    const liq = p.liquidity?.usd ?? 0;
+    const symbol = p.baseToken?.symbol || '???';
+    // memecoins only — floor out rug-dust and skip anything boring
+    if (!(price > 0) || liq < 15_000 || BORING_SYMBOLS.test(symbol)) continue;
+    out.push({
+      address: b.tokenAddress!,
+      name: p.baseToken?.name || 'Unknown',
+      symbol,
+      price,
+      priceChange24h: sanePctChange(p.priceChange?.h24 ?? 0, p.priceChange?.h6 ?? 0),
+      volume24h: p.volume?.h24 ?? 0,
+      marketCap: p.marketCap ?? p.fdv ?? 0,
+      liquidity: liq,
+      logoURI: p.info?.imageUrl || b.icon || null,
+    });
+    if (out.length >= 20) break;
+  }
+  return out;
+}
+
 router.get('/trending', publicLimiter, async (_req, res) => {
   try {
     if (trendingCache && Date.now() - trendingCache.at < TRENDING_CACHE_MS) {
       return sendSuccess(res, trendingCache.data);
     }
 
-    // 1. Top Solana tokens by real 24h volume, hard liquidity floor
+    // ── Primary: DexScreener trending memecoins ──
+    try {
+      const ds = await fetchDexscreenerTrending();
+      if (ds.length >= 8) {
+        trendingCache = { data: ds, at: Date.now() };
+        return sendSuccess(res, ds);
+      }
+    } catch {
+      // fall through to the Birdeye pipeline
+    }
+
+    // ── Fallback: Birdeye volume leaders (quality-filtered) ──
     const data = await birdeyeFetch('/defi/tokenlist', {
       sort_by: 'v24hUSD',
       sort_type: 'desc',
