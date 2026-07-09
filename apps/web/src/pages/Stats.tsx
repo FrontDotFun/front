@@ -65,20 +65,20 @@ export const Stats: FC = () => {
 
         <div className="stat-card">
           <div className="stat-card-label">
-            $FRONT Locked Supply {stats?.frontLockedPct != null && <span style={{ color: 'var(--green)' }}>· on-chain</span>}
+            $SCALE Locked Supply {stats?.frontLockedPct != null && <span style={{ color: 'var(--green)' }}>· on-chain</span>}
           </div>
           <div className="stat-card-value" style={{ color: 'var(--primary)' }}>
             {stats?.frontLockedPct != null ? `${stats.frontLockedPct.toFixed(2)}%` : '—'}
           </div>
           <div className="stat-card-sub">
             {stats?.frontLockedTokens != null
-              ? `${formatNumber(stats.frontLockedTokens)} of ${formatNumber(stats.frontTotalSupply ?? 0)} $FRONT`
+              ? `${formatNumber(stats.frontLockedTokens)} of ${formatNumber(stats.frontTotalSupply ?? 0)} $SCALE`
               : 'Awaiting on-chain read'}
           </div>
         </div>
 
         <div className="stat-card">
-          <div className="stat-card-label">$FRONT Burned</div>
+          <div className="stat-card-label">$SCALE Burned</div>
           <div className="stat-card-value" style={{ color: 'var(--yellow)' }}>
             {formatNumber(totalBurnedSol)} <span style={{ fontSize: '0.79rem' }}>SOL</span>
           </div>
@@ -134,7 +134,7 @@ export const Stats: FC = () => {
                 <span className="mono text-green">70%</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="text-secondary">Auto-buy $FRONT (locked 7d)</span>
+                <span className="text-secondary">Auto-buy $SCALE (locked 7d)</span>
                 <span className="mono" style={{ color: 'var(--primary)' }}>30%</span>
               </div>
             </div>
@@ -154,7 +154,7 @@ export const Stats: FC = () => {
                 <span className="mono">30%</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span className="text-secondary">Buy & burn $FRONT</span>
+                <span className="text-secondary">Buy & burn $SCALE</span>
                 <span className="mono text-yellow">20%</span>
               </div>
             </div>

@@ -76,7 +76,7 @@ export const Burns: FC = () => {
                   <tr>
                     <th>Token</th>
                     <th>Amount (SOL)</th>
-                    <th>$FRONT Burned</th>
+                    <th>$SCALE Burned</th>
                     <th className="text-right">Time</th>
                     <th className="text-right">TX</th>
                   </tr>

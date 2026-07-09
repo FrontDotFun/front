@@ -351,7 +351,7 @@ export const ReplaySim: FC = () => {
                     <span className="pg-result-num mono">{result.userPnl >= 0 ? '+' : ''}{result.userPnl.toFixed(2)} SOL</span>
                     <span className="pg-result-sub">
                       real move {result.movePct >= 0 ? '+' : ''}{result.movePct.toFixed(1)}% ·
-                      {result.userPnl >= 0 ? ' 30% auto-buys $FRONT · locked 7 days' : ' above liquidation — you lived'}
+                      {result.userPnl >= 0 ? ' 30% auto-buys $SCALE · locked 7 days' : ' above liquidation — you lived'}
                     </span>
                   </>
                 )}

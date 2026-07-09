@@ -20,7 +20,7 @@ export const Docs: FC = () => {
         <a href="#protocol-safety" className="docs-toc-link">Protocol Safety Model</a>
         <a href="#token-listing" className="docs-toc-link">Token Listing</a>
         <a href="#creator-revenue" className="docs-toc-link">Creator Revenue</a>
-        <a href="#profit-locks" className="docs-toc-link">Profit Locks &amp; $FRONT</a>
+        <a href="#profit-locks" className="docs-toc-link">Profit Locks &amp; $SCALE</a>
         <a href="#fee-structure" className="docs-toc-link">Fee Structure</a>
         <a href="#revenue-distribution" className="docs-toc-link">Revenue Distribution</a>
       </nav>
@@ -37,7 +37,7 @@ export const Docs: FC = () => {
           The lending pool is funded by Pump.fun creator rewards. Token creators who redirect 100% of their creator
           reward allocation to the protocol wallet get their token automatically listed for leveraged trading.
           This creates a self-sustaining cycle: creator rewards fund the pool, the pool enables leveraged trades,
-          trade fees generate revenue for creators, the protocol, and $FRONT token holders.
+          trade fees generate revenue for creators, the protocol, and $SCALE token holders.
         </p>
         <div className="docs-callout">
           <div className="docs-callout-title">Core Guarantee</div>
@@ -82,7 +82,7 @@ export const Docs: FC = () => {
         </p>
         <ul className="docs-list">
           <li><strong>70%</strong> is returned to you as SOL immediately</li>
-          <li><strong>30%</strong> is used to buy $FRONT tokens, which are locked for 7 days and then claimable on the Locks page</li>
+          <li><strong>30%</strong> is used to buy $SCALE tokens, which are locked for 7 days and then claimable on the Locks page</li>
         </ul>
 
         <h3>4. Loss Scenario</h3>
@@ -261,20 +261,20 @@ export const Docs: FC = () => {
 
       {/* Profit Locks */}
       <section id="profit-locks" className="docs-section">
-        <h2>Profit Locks &amp; $FRONT</h2>
+        <h2>Profit Locks &amp; $SCALE</h2>
         <p>
           When a trader closes a profitable position, 30% of the profit is automatically used to purchase
-          $FRONT tokens on the open market. These tokens are locked for 7 days in a time-locked contract.
+          $SCALE tokens on the open market. These tokens are locked for 7 days in a time-locked contract.
         </p>
         <ul className="docs-list">
-          <li>After 7 days, the locked $FRONT tokens become claimable on the Locks page</li>
+          <li>After 7 days, the locked $SCALE tokens become claimable on the Locks page</li>
           <li>Lock status and countdown timers are visible in the Locks dashboard</li>
-          <li>This mechanism creates consistent buy pressure on $FRONT and aligns trader incentives with the protocol</li>
+          <li>This mechanism creates consistent buy pressure on $SCALE and aligns trader incentives with the protocol</li>
         </ul>
 
         <h3>Buy &amp; Burn</h3>
         <p>
-          20% of all flat fee revenue is used to buy $FRONT on the open market and permanently burn the tokens.
+          20% of all flat fee revenue is used to buy $SCALE on the open market and permanently burn the tokens.
           This creates persistent deflationary pressure and is tracked on the Stats page.
         </p>
       </section>
@@ -335,13 +335,13 @@ export const Docs: FC = () => {
           <div className="docs-revenue-card">
             <div className="docs-revenue-pct" style={{ color: 'var(--yellow)' }}>20%</div>
             <div className="docs-revenue-label">Buy &amp; Burn</div>
-            <p>Used to purchase and permanently burn $FRONT tokens</p>
+            <p>Used to purchase and permanently burn $SCALE tokens</p>
           </div>
         </div>
 
         <p>
           Profit from successful trades is split separately:
-          70% goes to the trader as SOL, and 30% auto-buys $FRONT (locked 7 days).
+          70% goes to the trader as SOL, and 30% auto-buys $SCALE (locked 7 days).
         </p>
       </section>
     </div>

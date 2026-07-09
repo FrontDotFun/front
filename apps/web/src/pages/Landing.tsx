@@ -349,7 +349,7 @@ export const Landing: FC = () => {
           {[
             { n: '01', t: 'DEPOSIT', d: 'Sign in with email. A custodial Solana wallet is generated — no extension, no seed-phrase anxiety. Fund it with SOL.' },
             { n: '02', t: 'PICK & SIZE', d: 'Choose any listed Pump.fun token. Set collateral and dial leverage 2–10x. The lending pool fronts the rest — instantly.' },
-            { n: '03', t: 'RIDE OR DIE', d: 'Position executes as a real Jupiter swap. Take profit, stop loss, or 24h auto-close. Profits split 70/30 with $FRONT buybacks.' },
+            { n: '03', t: 'RIDE OR DIE', d: 'Position executes as a real Jupiter swap. Take profit, stop loss, or 24h auto-close. Profits split 70/30 with $SCALE buybacks.' },
           ].map((c, i) => (
             <Reveal delay={i * 0.1} key={c.n}>
               <div className="lp-step">
@@ -404,7 +404,7 @@ export const Landing: FC = () => {
             {[
               { k: '50%', v: 'OF FEES REFILL THE LENDING POOL', c: 'var(--green)' },
               { k: '30%', v: 'PAID TO THE TOKEN CREATOR', c: 'var(--primary)' },
-              { k: '20%', v: 'BUYS & BURNS $FRONT', c: 'var(--magenta)' },
+              { k: '20%', v: 'BUYS & BURNS $SCALE', c: 'var(--magenta)' },
             ].map((f) => (
               <div className="lp-fly-item" key={f.k}>
                 <span className="lp-fly-k mono" style={{ color: f.c }}>{f.k}</span>

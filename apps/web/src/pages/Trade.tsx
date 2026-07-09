@@ -676,7 +676,7 @@ export const Trade: FC = () => {
                   </div>
                   <div className="exec-row">
                     <span>Profit Lock</span>
-                    <span className="mono" style={{ color: 'var(--yellow)' }}>30% &rarr; $FRONT</span>
+                    <span className="mono" style={{ color: 'var(--yellow)' }}>30% &rarr; $SCALE</span>
                   </div>
                 </div>
 
@@ -898,7 +898,7 @@ export const Trade: FC = () => {
                 </div>
                 <div className="confirm-row">
                   <span>Profit Lock</span>
-                  <span className="mono" style={{ color: 'var(--primary)' }}>30% → $FRONT</span>
+                  <span className="mono" style={{ color: 'var(--primary)' }}>30% → $SCALE</span>
                 </div>
               </div>
 

@@ -306,9 +306,9 @@ export const Account: FC = () => {
         <HoldingsPanel />
       </div>
 
-      {/* ═══ B) Locked $FRONT Section ═══ */}
+      {/* ═══ B) Locked $SCALE Section ═══ */}
       <div style={cardStyle}>
-        <div style={sectionLabel}>Locked $FRONT</div>
+        <div style={sectionLabel}>Locked $SCALE</div>
 
         {locksLoading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
@@ -316,7 +316,7 @@ export const Account: FC = () => {
           </div>
         ) : locks.length === 0 ? (
           <div style={{ padding: '20px 0', textAlign: 'center', color: '#3a4d63', fontSize: 13 }}>
-            No locks yet. Make profitable trades to earn $FRONT!
+            No locks yet. Make profitable trades to earn $SCALE!
           </div>
         ) : (
           <>
@@ -360,7 +360,7 @@ export const Account: FC = () => {
                     }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#e8f0fa', fontFamily: "'JetBrains Mono', monospace" }}>
-                          {formatSol(BigInt(lock.tokenAmount))} $FRONT
+                          {formatSol(BigInt(lock.tokenAmount))} $SCALE
                         </div>
                         <div style={{ fontSize: 11, color: '#52667d' }}>
                           From {lock.position?.tokenSymbol ?? 'token'} trade · Locked {formatTimeAgo(lock.lockedAt)}
@@ -395,7 +395,7 @@ export const Account: FC = () => {
                     }}>
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#e8f0fa', fontFamily: "'JetBrains Mono', monospace" }}>
-                          {formatSol(BigInt(lock.tokenAmount))} $FRONT
+                          {formatSol(BigInt(lock.tokenAmount))} $SCALE
                         </div>
                         <div style={{ fontSize: 11, color: '#52667d' }}>
                           From {lock.position?.tokenSymbol ?? 'token'} trade · Locked {formatTimeAgo(lock.lockedAt)}
