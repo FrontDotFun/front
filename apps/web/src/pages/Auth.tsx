@@ -59,7 +59,9 @@ export const Auth: FC = () => {
     const apiUrl = import.meta.env.VITE_API_URL
       ? `${import.meta.env.VITE_API_URL.replace(/\/+$/, '').replace(/\/api$/, '')}/api`
       : '/api';
-    window.location.href = `${apiUrl}/auth/google`;
+    // Pass our real origin so the backend can keep the CSRF cookie on
+    // the same host as the OAuth callback (see /auth/google).
+    window.location.href = `${apiUrl}/auth/google?from=${encodeURIComponent(window.location.origin)}`;
   };
 
   return (

@@ -319,19 +319,24 @@ const authCodeStore = new Map<string, { token: string; expiresAt: number }>();
  * Generates a CSRF state parameter stored in a secure httpOnly cookie.
  */
 router.get('/google', (req, res) => {
-  // The CSRF state cookie must live on the SAME host Google returns to
-  // (cookies don't cross registrable domains). If the user entered via
-  // a different host (e.g. the Vercel proxy on www.front.fun while the
-  // callback is on the Railway domain), bounce once to the callback's
-  // origin so cookie + callback share a host. Becomes a no-op when
-  // GOOGLE_CALLBACK_URL is flipped to the branded domain.
+  // The CSRF state cookie must be set by the SAME host Google returns
+  // to (cookies don't cross domains). When the flow starts through the
+  // Vercel proxy (browser on www.front.fun) but the callback is on the
+  // Railway domain, the cookie would scope to www and never reach the
+  // callback → invalid_state on every attempt.
+  //
+  // The proxy hides the real browser host from us, so the frontend
+  // passes its origin as ?from=. If that differs from the callback
+  // origin, bounce ONCE to the callback host directly (absolute
+  // cross-origin 302 → browser navigates to Railway → cookie scopes
+  // there). No-op once GOOGLE_CALLBACK_URL is the branded domain.
   const cbOrigin = new URL(GOOGLE_CALLBACK_URL).origin;
-  const fwdHost = (req.headers['x-forwarded-host'] as string | undefined)?.split(',')[0]?.trim();
-  const host = fwdHost || req.headers.host || '';
-  const proto = ((req.headers['x-forwarded-proto'] as string | undefined)?.split(',')[0]?.trim()) || req.protocol || 'https';
-  const reqOrigin = `${proto}://${host}`;
-  if (host && reqOrigin !== cbOrigin && req.query.hop !== '1') {
-    return res.redirect(`${cbOrigin}/api/auth/google?hop=1`);
+  if (req.query.hop !== '1') {
+    let fromOrigin = '';
+    try { fromOrigin = req.query.from ? new URL(String(req.query.from)).origin : ''; } catch { /* ignore */ }
+    if (fromOrigin && fromOrigin !== cbOrigin) {
+      return res.redirect(`${cbOrigin}/api/auth/google?hop=1`);
+    }
   }
 
   const state = crypto.randomBytes(32).toString('hex');
