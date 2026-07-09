@@ -5,7 +5,7 @@ const PROTOCOL_WALLET = '2uNqHvi3RrkFaFmtBM2KT9eWBDEqoj2eomL97A2v9hoM';
 
 const stepStyle = {
   background: 'var(--bg-2)',
-  borderRadius: 'var(--radius-lg)',
+  borderRadius: 0,
   padding: '20px 24px',
   border: '1px solid var(--border)',
 } as const;
@@ -14,8 +14,8 @@ const numStyle = {
   width: 28,
   height: 28,
   borderRadius: '50%',
-  background: '#8b5cff',
-  color: '#050408',
+  background: '#ffb300',
+  color: '#060605',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -29,7 +29,7 @@ const inputStyle = {
   padding: '10px 14px',
   background: 'var(--bg-1)',
   border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-md)',
+  borderRadius: 0,
   color: 'var(--text-0)',
   fontSize: '0.9rem',
   fontFamily: 'inherit',
@@ -118,7 +118,7 @@ export const ListToken: FC = () => {
             style={inputStyle}
             required
           />
-          <div style={{ fontSize: '0.72rem', color: '#5e5680', marginTop: 4 }}>
+          <div style={{ fontSize: '0.72rem', color: '#6b664f', marginTop: 4 }}>
             Tier is auto-detected by market cap. Creator fee wallet is verified on-chain.
           </div>
         </div>
@@ -131,10 +131,10 @@ export const ListToken: FC = () => {
             padding: '12px 0',
             fontSize: '0.93rem',
             fontWeight: 600,
-            background: '#8b5cff',
-            color: '#050408',
+            background: '#ffb300',
+            color: '#060605',
             border: 'none',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 0,
             cursor: loading ? 'wait' : 'pointer',
             opacity: loading ? 0.7 : 1,
             width: '100%',
@@ -146,10 +146,10 @@ export const ListToken: FC = () => {
         {result && (
           <div style={{
             padding: '12px 16px',
-            borderRadius: 'var(--radius-md)',
-            background: result.success ? 'rgba(0, 255, 163, 0.08)' : 'rgba(255, 61, 113, 0.08)',
-            border: `1px solid ${result.success ? '#00ffa3' : '#ff3d71'}`,
-            color: result.success ? '#00ffa3' : '#ff3d71',
+            borderRadius: 0,
+            background: result.success ? 'rgba(61, 255, 158, 0.08)' : 'rgba(255, 77, 77, 0.08)',
+            border: `1px solid ${result.success ? '#3dff9e' : '#ff4d4d'}`,
+            color: result.success ? '#3dff9e' : '#ff4d4d',
             fontSize: '0.86rem',
           }}>
             {result.message}

@@ -59,15 +59,15 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
 
     // Protocol branding — top left
     ctx.font = 'bold 16px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#f4f2ff';
+    ctx.fillStyle = '#f2eee2';
     ctx.fillText('FRONT', 28, 42);
     ctx.font = '12px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#6f668f';
+    ctx.fillStyle = '#76705a';
     ctx.fillText('PROTOCOL', 82, 42);
 
     // Domain — top right
     ctx.font = '11px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#453a6b';
+    ctx.fillStyle = '#4d4936';
     ctx.textAlign = 'right';
     ctx.fillText('front.fun', W - 28, 42);
     ctx.textAlign = 'left';
@@ -82,16 +82,16 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
 
     // Token + Leverage
     ctx.font = 'bold 22px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#f4f2ff';
+    ctx.fillStyle = '#f2eee2';
     ctx.fillText(`${trade.token?.symbol ?? '???'}`, 28, 92);
     ctx.font = '16px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#9d95b8';
+    ctx.fillStyle = '#a8a184';
     ctx.fillText(`${trade.leverage}x`, 28 + ctx.measureText(`${trade.token?.symbol ?? '???'}`).width + 12, 92);
 
     // Status badge
     ctx.font = 'bold 12px "Inter", system-ui, sans-serif';
     const statusText = trade.status === 'closed_profit' ? 'PROFIT' : trade.status === 'liquidated' ? 'LIQUIDATED' : 'LOSS';
-    ctx.fillStyle = isProfit ? '#00ffa3' : '#ff3d71';
+    ctx.fillStyle = isProfit ? '#3dff9e' : '#ff4d4d';
     ctx.textAlign = 'right';
     ctx.fillText(statusText, W - 28, 92);
     ctx.textAlign = 'left';
@@ -99,12 +99,12 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     // Big ROI number
     const roiStr = `${roi >= 0 ? '+' : ''}${roi.toFixed(2)}%`;
     ctx.font = `bold 56px "Inter", system-ui, sans-serif`;
-    ctx.fillStyle = isProfit ? '#00ffa3' : '#ff3d71';
+    ctx.fillStyle = isProfit ? '#3dff9e' : '#ff4d4d';
     ctx.fillText(roiStr, 28, 168);
 
     // PnL in SOL
     ctx.font = '18px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#9d95b8';
+    ctx.fillStyle = '#a8a184';
     ctx.fillText(
       `${pnlSol >= 0 ? '+' : ''}${pnlSol.toFixed(4)} SOL`,
       28,
@@ -114,14 +114,14 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
     // Bottom stats
     const statY = 240;
     ctx.font = '11px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#5e5680';
+    ctx.fillStyle = '#6b664f';
     ctx.fillText('CAPITAL', 28, statY);
     ctx.fillText('ENTRY', 160, statY);
     ctx.fillText('EXIT', 292, statY);
     ctx.fillText('TIER', 424, statY);
 
     ctx.font = '14px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#c9c3e0';
+    ctx.fillStyle = '#c9c4ae';
     ctx.fillText(`${capitalSol.toFixed(3)} SOL`, 28, statY + 20);
     ctx.fillText(`${entryPrice.toFixed(8)}`, 160, statY + 20);
     ctx.fillText(`${exitPrice.toFixed(8)}`, 292, statY + 20);
@@ -137,7 +137,7 @@ export const PnlCardGen: FC<PnlCardGenProps> = ({ trade }) => {
 
     // Footer
     ctx.font = '10px "Inter", system-ui, sans-serif';
-    ctx.fillStyle = '#352a58';
+    ctx.fillStyle = '#3f3b26';
     ctx.fillText('Leveraged memecoin trading on Solana', 28, 308);
     ctx.textAlign = 'right';
     ctx.fillText(new Date().toISOString().split('T')[0], W - 28, 308);

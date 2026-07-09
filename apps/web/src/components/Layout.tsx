@@ -1,7 +1,8 @@
 import { type FC, useState, useEffect, useRef } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { WalletButton } from './WalletButton';
-import { fetchTokenOverview, type TokenOverview } from '../lib/birdeye';
+import { CommandPalette } from './CommandPalette';
+import { fetchTokenOverview } from '../lib/birdeye';
 import { formatPrice } from '../lib/format';
 import * as api from '../lib/api';
 
@@ -14,6 +15,36 @@ interface TickerItem {
   key: string;
 }
 
+const NAV_TABS = [
+  { to: '/trade', label: 'Trade', key: '1' },
+  { to: '/explore', label: 'Explorer', key: '2' },
+  { to: '/list', label: 'List Token', key: '3' },
+  { to: '/portfolio', label: 'Holdings', key: '4' },
+  { to: '/locks', label: 'Locks', key: '5' },
+  { to: '/stats', label: 'Stats', key: '6' },
+  { to: '/docs', label: 'Docs', key: '7' },
+  { to: '/account', label: 'Account', key: '8' },
+];
+
+/** Live UTC clock — the terminal heartbeat */
+const UtcClock: FC = () => {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const hh = String(now.getUTCHours()).padStart(2, '0');
+  const mm = String(now.getUTCMinutes()).padStart(2, '0');
+  const ss = String(now.getUTCSeconds()).padStart(2, '0');
+  return (
+    <span className="top-nav-clock">
+      <span className="nav-live-dot" />
+      <span>SOL·MAINNET</span>
+      <b>{hh}:{mm}:{ss} UTC</b>
+    </span>
+  );
+};
+
 export const Layout: FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -22,6 +53,19 @@ export const Layout: FC = () => {
   const [tickerHidden, setTickerHidden] = useState(false);
   const tickerLoaded = useRef(false);
 
+  // Number-key page jumps (1-8) when not typing in a field
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      const tab = NAV_TABS.find((t) => t.key === e.key);
+      if (tab) navigate(tab.to);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [navigate]);
+
   // Fetch listed tokens from API, then enrich with Birdeye prices
   useEffect(() => {
     if (tickerLoaded.current) return;
@@ -29,7 +73,6 @@ export const Layout: FC = () => {
 
     const loadTicker = async () => {
       try {
-        // Fetch listed tokens from the protocol API
         const listedTokens = await api.getListedTokens(15);
 
         if (!listedTokens || listedTokens.length === 0) {
@@ -39,7 +82,6 @@ export const Layout: FC = () => {
 
         setTickerHidden(false);
 
-        // Fetch Birdeye price data for each listed token
         const results = await Promise.allSettled(
           listedTokens.map(t => fetchTokenOverview(t.address))
         );
@@ -58,7 +100,6 @@ export const Layout: FC = () => {
               key: token.address,
             });
           } else {
-            // Token listed but no Birdeye data — still show it
             items.push({
               symbol: `$${token.symbol || '???'}`,
               address: token.address,
@@ -79,7 +120,6 @@ export const Layout: FC = () => {
 
     loadTicker();
 
-    // Refresh every 60s
     const interval = setInterval(() => {
       tickerLoaded.current = false;
       loadTicker();
@@ -90,46 +130,35 @@ export const Layout: FC = () => {
 
   return (
     <>
-      {/* ── Horizontal Top Nav ──────────────────── */}
+      <CommandPalette />
+
+      {/* ── Terminal Status Bar ─────────────────── */}
       <nav className="top-nav">
         <NavLink to="/" className="top-nav-logo">
-          <img src="/front-logo.png" alt="Front" width="22" height="22" style={{ borderRadius: 4 }} />
-          <span>FRONT</span>
+          <img src="/front-logo.png" alt="Front" width="20" height="20" />
+          <span>FRONT_</span>
         </NavLink>
 
         <div className="top-nav-tabs">
-          <NavLink to="/trade" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Trade
-          </NavLink>
-          <NavLink to="/explore" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Explorer
-          </NavLink>
-          <NavLink to="/list" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            List Token
-          </NavLink>
-          <NavLink to="/portfolio" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Holdings
-          </NavLink>
-          <NavLink to="/locks" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Locks
-          </NavLink>
-          <NavLink to="/stats" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Stats
-          </NavLink>
-          <NavLink to="/docs" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Docs
-          </NavLink>
-          <NavLink to="/account" className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}>
-            Account
-          </NavLink>
+          {NAV_TABS.map((tab) => (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              className={({ isActive }) => `top-nav-tab ${isActive ? 'active' : ''}`}
+            >
+              <span className="tab-key">{tab.key}</span>
+              {tab.label}
+            </NavLink>
+          ))}
         </div>
 
         <div className="top-nav-right">
+          <UtcClock />
           <WalletButton />
         </div>
       </nav>
 
-      {/* ── Ticker Bar ─────────────────────────── */}
+      {/* ── LED Ticker Tape ────────────────────── */}
       {!tickerHidden && (
         <div className="ticker-bar">
           {tickerItems.length > 0 ? (
@@ -149,7 +178,7 @@ export const Layout: FC = () => {
                     <span className="ticker-name">{t.symbol}</span>
                     <span className="ticker-price">${t.price}</span>
                     <span className={`ticker-change ${t.up ? 'ticker-change-up' : 'ticker-change-down'}`}>
-                      {t.up ? '+' : ''}{t.change}%
+                      {t.up ? '▲' : '▼'}{t.change}%
                     </span>
                   </div>
                 ))
@@ -164,8 +193,8 @@ export const Layout: FC = () => {
             }}>
               {Array.from({ length: 20 }).map((_, i) => (
                 <div className="ticker-item" key={`skel-${i}`}>
-                  <span className="ticker-name" style={{ width: 40, height: 10, background: '#0f0c1a', borderRadius: 3, display: 'inline-block' }} />
-                  <span className="ticker-price" style={{ width: 50, height: 10, background: '#0c0a16', borderRadius: 3, display: 'inline-block' }} />
+                  <span className="ticker-name" style={{ width: 40, height: 10, background: 'var(--bg-3)', display: 'inline-block' }} />
+                  <span className="ticker-price" style={{ width: 50, height: 10, background: 'var(--bg-2)', display: 'inline-block' }} />
                 </div>
               ))}
             </div>
@@ -174,7 +203,7 @@ export const Layout: FC = () => {
       )}
 
       {/* ── Content ────────────────────────────── */}
-      <div className={isTradePage ? 'main-content' : 'main-content'}>
+      <div className="main-content">
         {isTradePage ? (
           <Outlet />
         ) : (

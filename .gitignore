@@ -40,3 +40,4 @@ coverage/
 .vercel
 .github/workflows/
 .railway-config-pull-*
+.fuse_hidden*

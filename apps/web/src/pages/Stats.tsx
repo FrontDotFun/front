@@ -32,7 +32,7 @@ export const Stats: FC = () => {
       </div>
 
       {error && (
-        <div className="alert alert-error" style={{ padding: '12px 16px', borderRadius: 8 }}>
+        <div className="alert alert-error" style={{ padding: '12px 16px', borderRadius: 0 }}>
           Failed to load stats: {String(error)}
         </div>
       )}
@@ -141,7 +141,7 @@ export const Stats: FC = () => {
       </div>
 
       {/* Protocol Guarantees */}
-      <div className="card" style={{ padding: 20, borderColor: 'rgba(139, 92, 255, 0.15)' }}>
+      <div className="card" style={{ padding: 20, borderColor: 'rgba(255, 179, 0, 0.15)' }}>
         <h3 style={{ marginBottom: 12 }}>Protocol Guarantees</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.86rem', color: 'var(--text-1)' }}>
           <div>• <strong>Auto-liquidation safety</strong> — positions auto-close before protocol capital is at risk, with a 5% safety buffer</div>

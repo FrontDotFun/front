@@ -96,7 +96,7 @@ export const Locks: FC = () => {
       </div>
 
       {error && (
-        <div className="alert alert-error" style={{ padding: '12px 16px', borderRadius: 8 }}>
+        <div className="alert alert-error" style={{ padding: '12px 16px', borderRadius: 0 }}>
           {error}
         </div>
       )}

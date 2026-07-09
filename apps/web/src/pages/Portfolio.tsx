@@ -30,24 +30,24 @@ export const Portfolio: FC = () => {
   if (loading) {
     return (
       <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div className="skeleton" style={{ height: 120, borderRadius: 14 }} />
+        <div className="skeleton" style={{ height: 120, borderRadius: 0 }} />
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 12 }}>
-          {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 90, borderRadius: 12 }} />)}
+          {[1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 90, borderRadius: 0 }} />)}
         </div>
-        <div className="skeleton" style={{ height: 200, borderRadius: 14 }} />
+        <div className="skeleton" style={{ height: 200, borderRadius: 0 }} />
       </div>
     );
   }
 
   const cardStyle = {
-    background: '#0c0a16',
-    border: '1px solid #211a38',
-    borderRadius: 14,
+    background: '#0b0b08',
+    border: '1px solid #262418',
+    borderRadius: 0,
     padding: '18px 20px',
   };
 
-  const statLabel = { fontSize: 11, color: '#5e5680', marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
-  const statValue = { fontSize: 20, fontWeight: 700 as const, color: '#f4f2ff', fontFamily: "'JetBrains Mono', monospace" };
+  const statLabel = { fontSize: 11, color: '#6b664f', marginBottom: 4, textTransform: 'uppercase' as const, letterSpacing: '0.04em' };
+  const statValue = { fontSize: 20, fontWeight: 700 as const, color: '#f2eee2', fontFamily: "'JetBrains Mono', monospace" };
 
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -58,7 +58,7 @@ export const Portfolio: FC = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={statLabel}>Wallet Address</div>
-            <div style={{ fontSize: 13, color: '#c9c3e0', fontFamily: "'JetBrains Mono', monospace" }}>
+            <div style={{ fontSize: 13, color: '#c9c4ae', fontFamily: "'JetBrains Mono', monospace" }}>
               {portfolio?.wallet.address
                 ? `${portfolio.wallet.address.slice(0, 6)}...${portfolio.wallet.address.slice(-4)}`
                 : '—'}
@@ -66,7 +66,7 @@ export const Portfolio: FC = () => {
           </div>
           <div style={{ textAlign: 'right' }}>
             <div style={statLabel}>SOL Balance</div>
-            <div style={{ ...statValue, color: '#8b5cff' }}>
+            <div style={{ ...statValue, color: '#ffb300' }}>
               {portfolio?.wallet.balanceSol || '0.0000'} SOL
             </div>
           </div>
@@ -97,12 +97,12 @@ export const Portfolio: FC = () => {
 
       {/* Open Positions */}
       <div style={cardStyle}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, color: '#c9c3e0' }}>Open Positions</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, color: '#c9c4ae' }}>Open Positions</h3>
         {!portfolio?.positions.items.length ? (
-          <div style={{ padding: '24px 0', textAlign: 'center', color: '#453a6b', fontSize: 13 }}>
+          <div style={{ padding: '24px 0', textAlign: 'center', color: '#4d4936', fontSize: 13 }}>
             No open positions.{' '}
             <span
-              style={{ color: '#8b5cff', cursor: 'pointer' }}
+              style={{ color: '#ffb300', cursor: 'pointer' }}
               onClick={() => navigate('/explore')}
             >
               Start trading →
@@ -115,30 +115,30 @@ export const Portfolio: FC = () => {
                 key={p.id}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 16px', background: '#07060d', border: '1px solid #0f0c1a',
-                  borderRadius: 10, cursor: 'pointer',
+                  padding: '12px 16px', background: '#070706', border: '1px solid #12110c',
+                  borderRadius: 0, cursor: 'pointer',
                 }}
                 onClick={() => navigate(`/trade?token=${p.token.address}`)}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{
                     width: 32, height: 32, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #8b5cff20, #8b5cff05)',
+                    background: 'linear-gradient(135deg, #ffb30020, #ffb30005)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12, fontWeight: 700, color: '#8b5cff',
+                    fontSize: 12, fontWeight: 700, color: '#ffb300',
                   }}>
                     {p.token.symbol?.charAt(0) || '?'}
                   </div>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f4f2ff' }}>{p.token.symbol || 'Unknown'}</div>
-                    <div style={{ fontSize: 11, color: '#5e5680' }}>{p.leverage}x • {p.tier}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#f2eee2' }}>{p.token.symbol || 'Unknown'}</div>
+                    <div style={{ fontSize: 11, color: '#6b664f' }}>{p.leverage}x • {p.tier}</div>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f4f2ff', fontFamily: "'JetBrains Mono', monospace" }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#f2eee2', fontFamily: "'JetBrains Mono', monospace" }}>
                     {(Number(p.userCapital) / 1e9).toFixed(3)} SOL
                   </div>
-                  <div style={{ fontSize: 11, color: '#5e5680' }}>
+                  <div style={{ fontSize: 11, color: '#6b664f' }}>
                     {new Date(p.openedAt).toLocaleDateString()}
                   </div>
                 </div>
@@ -150,14 +150,14 @@ export const Portfolio: FC = () => {
 
       {/* P&L Summary */}
       <div style={cardStyle}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, color: '#c9c3e0' }}>Performance</h3>
+        <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 14, color: '#c9c4ae' }}>Performance</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
             <div style={statLabel}>Total P&L</div>
             <div style={{
               ...statValue,
               fontSize: 16,
-              color: Number(portfolio?.history.totalPnlLamports || 0) >= 0 ? '#00ffa3' : '#ff3d71',
+              color: Number(portfolio?.history.totalPnlLamports || 0) >= 0 ? '#3dff9e' : '#ff4d4d',
             }}>
               {((Number(portfolio?.history.totalPnlLamports || 0)) / 1e9).toFixed(4)} SOL
             </div>

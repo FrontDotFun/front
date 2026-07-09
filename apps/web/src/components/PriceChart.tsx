@@ -85,26 +85,26 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#050408' },
-        textColor: '#5e5680',
+        background: { type: ColorType.Solid, color: '#060605' },
+        textColor: '#6b664f',
         fontSize: 11,
         fontFamily: "'JetBrains Mono', monospace",
       },
       grid: {
-        vertLines: { color: '#0d0b18' },
-        horzLines: { color: '#0d0b18' },
+        vertLines: { color: '#0d0d0a' },
+        horzLines: { color: '#0d0d0a' },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: '#8b5cff40', width: 1, style: 2, labelBackgroundColor: '#8b5cff' },
-        horzLine: { color: '#8b5cff40', width: 1, style: 2, labelBackgroundColor: '#8b5cff' },
+        vertLine: { color: '#ffb30040', width: 1, style: 2, labelBackgroundColor: '#ffb300' },
+        horzLine: { color: '#ffb30040', width: 1, style: 2, labelBackgroundColor: '#ffb300' },
       },
       rightPriceScale: {
-        borderColor: '#0f0c1a',
+        borderColor: '#12110c',
         scaleMargins: { top: 0.1, bottom: 0.2 },
       },
       timeScale: {
-        borderColor: '#0f0c1a',
+        borderColor: '#12110c',
         timeVisible: true,
         secondsVisible: true,
         rightOffset: 5,
@@ -113,12 +113,12 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
     });
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#00ffa3',
-      downColor: '#ff3d71',
-      borderUpColor: '#00ffa3',
-      borderDownColor: '#ff3d71',
-      wickUpColor: '#00ffa380',
-      wickDownColor: '#ff3d7180',
+      upColor: '#3dff9e',
+      downColor: '#ff4d4d',
+      borderUpColor: '#3dff9e',
+      borderDownColor: '#ff4d4d',
+      wickUpColor: '#3dff9e80',
+      wickDownColor: '#ff4d4d80',
       priceFormat: {
         type: 'custom',
         formatter: (price: number) => {
@@ -205,7 +205,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       if (pos.entryPrice > 0) {
         const entryLine = candleSeries.createPriceLine({
           price: pos.entryPrice * multiplier,
-          color: '#8b5cff',
+          color: '#ffb300',
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -218,7 +218,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       if (pos.liquidationPrice > 0) {
         const liqLine = candleSeries.createPriceLine({
           price: pos.liquidationPrice * multiplier,
-          color: '#ff3d71',
+          color: '#ff4d4d',
           lineWidth: 1,
           lineStyle: LineStyle.Solid,
           axisLabelVisible: true,
@@ -231,7 +231,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       if (pos.takeProfitPrice && pos.takeProfitPrice > 0) {
         const tpLine = candleSeries.createPriceLine({
           price: pos.takeProfitPrice * multiplier,
-          color: '#00ffa3',
+          color: '#3dff9e',
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -244,7 +244,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       if (pos.stopLossPrice && pos.stopLossPrice > 0) {
         const slLine = candleSeries.createPriceLine({
           price: pos.stopLossPrice * multiplier,
-          color: '#ffd166',
+          color: '#ffd75e',
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           axisLabelVisible: true,
@@ -292,7 +292,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       const volumeData: HistogramData[] = bars.map((b) => ({
         time: b.time as Time,
         value: b.volume,
-        color: b.close >= b.open ? '#00ffa320' : '#ff3d7120',
+        color: b.close >= b.open ? '#3dff9e20' : '#ff4d4d20',
       }));
 
       candleSeries.setData(candleData);
@@ -374,7 +374,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       volumeSeries.update({
         time: bar.time as Time,
         value: bar.volume,
-        color: bar.close >= bar.open ? '#00ffa320' : '#ff3d7120',
+        color: bar.close >= bar.open ? '#3dff9e20' : '#ff4d4d20',
       });
 
       // Update price change
@@ -411,8 +411,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
         alignItems: 'center',
         gap: 2,
         padding: '4px 8px',
-        borderBottom: '1px solid #0f0c1a',
-        background: '#07060d',
+        borderBottom: '1px solid #12110c',
+        background: '#070706',
         flexShrink: 0,
       }}>
         {/* Timeframes */}
@@ -425,11 +425,11 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
               fontSize: 10,
               fontWeight: 600,
               fontFamily: "'JetBrains Mono', monospace",
-              color: interval === tf ? '#8b5cff' : '#453a6b',
-              background: interval === tf ? '#8b5cff10' : 'transparent',
+              color: interval === tf ? '#ffb300' : '#4d4936',
+              background: interval === tf ? '#ffb30010' : 'transparent',
               border: '1px solid',
-              borderColor: interval === tf ? '#8b5cff25' : 'transparent',
-              borderRadius: 3,
+              borderColor: interval === tf ? '#ffb30025' : 'transparent',
+              borderRadius: 0,
               cursor: 'pointer',
               transition: 'all 0.15s',
             }}
@@ -452,13 +452,13 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: '#00ffa3',
+              background: '#3dff9e',
               animation: 'pulse-dot 2s ease-in-out infinite',
             }} />
             <span style={{
               fontSize: 12,
               fontWeight: 700,
-              color: '#f4f2ff',
+              color: '#f2eee2',
               fontFamily: "'JetBrains Mono', monospace",
             }}>
               ${lastPrice.toPrecision(6)}
@@ -466,7 +466,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             <span style={{
               fontSize: 10,
               fontWeight: 600,
-              color: priceChange >= 0 ? '#00ffa3' : '#ff3d71',
+              color: priceChange >= 0 ? '#3dff9e' : '#ff4d4d',
               fontFamily: "'JetBrains Mono', monospace",
             }}>
               {priceChange >= 0 ? '+' : ''}{priceChange.toFixed(2)}%
@@ -475,7 +475,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
         )}
 
         {/* Source toggle */}
-        <div style={{ display: 'flex', gap: 1, background: '#0c0a16', borderRadius: 3, padding: 1 }}>
+        <div style={{ display: 'flex', gap: 1, background: '#0b0b08', borderRadius: 0, padding: 1 }}>
           {hasBirdeyeKey && (
             <button
               onClick={() => setSource('birdeye-live')}
@@ -483,10 +483,10 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
                 padding: '2px 8px',
                 fontSize: 9,
                 fontWeight: 600,
-                color: source === 'birdeye-live' ? '#00ffa3' : '#352a58',
-                background: source === 'birdeye-live' ? '#0f0c1a' : 'transparent',
+                color: source === 'birdeye-live' ? '#3dff9e' : '#3f3b26',
+                background: source === 'birdeye-live' ? '#12110c' : 'transparent',
                 border: 'none',
-                borderRadius: 2,
+                borderRadius: 0,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -495,7 +495,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             >
               <span style={{
                 width: 4, height: 4, borderRadius: '50%',
-                background: source === 'birdeye-live' ? '#00ffa3' : '#352a58',
+                background: source === 'birdeye-live' ? '#3dff9e' : '#3f3b26',
               }} />
               Live
             </button>
@@ -506,10 +506,10 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
               padding: '2px 8px',
               fontSize: 9,
               fontWeight: 600,
-              color: source === 'birdeye-embed' ? '#8b5cff' : '#352a58',
-              background: source === 'birdeye-embed' ? '#0f0c1a' : 'transparent',
+              color: source === 'birdeye-embed' ? '#ffb300' : '#3f3b26',
+              background: source === 'birdeye-embed' ? '#12110c' : 'transparent',
               border: 'none',
-              borderRadius: 2,
+              borderRadius: 0,
               cursor: 'pointer',
             }}
           >
@@ -519,7 +519,7 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
       </div>
 
       {/* Chart area */}
-      <div style={{ flex: 1, position: 'relative', background: '#050408', minHeight: 0 }}>
+      <div style={{ flex: 1, position: 'relative', background: '#060605', minHeight: 0 }}>
         {/* Loading overlay */}
         {loading && (
           <div style={{
@@ -534,8 +534,8 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             <div style={{
               width: 20,
               height: 20,
-              border: '2px solid #241d3d',
-              borderTopColor: '#8b5cff',
+              border: '2px solid #262418',
+              borderTopColor: '#ffb300',
               borderRadius: '50%',
               animation: 'spin 0.8s linear infinite',
             }} />
@@ -582,11 +582,11 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             height: '100%',
             gap: 8,
           }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#352a58" strokeWidth="1.5">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#3f3b26" strokeWidth="1.5">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
-            <span style={{ fontSize: 13, color: '#5e5680', fontWeight: 500 }}>Select a token to load chart</span>
-            <span style={{ fontSize: 11, color: '#352a58' }}>Pick from the ticker bar or use Cmd+K</span>
+            <span style={{ fontSize: 13, color: '#6b664f', fontWeight: 500 }}>Select a token to load chart</span>
+            <span style={{ fontSize: 11, color: '#3f3b26' }}>Pick from the ticker bar or use Cmd+K</span>
           </div>
         )}
 
@@ -597,11 +597,11 @@ export const PriceChart: FC<PriceChartProps> = ({ tokenAddress, positions, suppl
             bottom: 12,
             left: 12,
             padding: '8px 12px',
-            background: '#211a38',
-            border: '1px solid #352a58',
-            borderRadius: 6,
+            background: '#262418',
+            border: '1px solid #3f3b26',
+            borderRadius: 0,
             fontSize: 11,
-            color: '#9d95b8',
+            color: '#a8a184',
             zIndex: 5,
           }}>
             Add VITE_BIRDEYE_API_KEY to .env for live 1s charts
