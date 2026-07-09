@@ -34,9 +34,17 @@ COPY packages/services/ packages/services/
 
 RUN cd packages/database && npx prisma generate
 
+# core/solana export dist entrypoints (database exports src) — build them
+# exactly like Dockerfile.api does so imports resolve under tsx
+RUN cd packages/core && pnpm build
+RUN cd packages/solana && pnpm build
+RUN cd packages/services && pnpm build
+
 # The Railway service's start command is `node packages/services/dist/scheduler.js`
-# (a dashboard setting that overrides this Dockerfile's CMD). Provide an ESM
-# shim at that exact path which boots tsx on the real source.
+# (a dashboard setting that overrides this Dockerfile's CMD). Overwrite the
+# compiled entrypoint with an ESM shim that boots tsx on the real source —
+# compiled services would crash importing database's .ts entrypoint under
+# plain node. Must run AFTER the services build.
 RUN mkdir -p packages/services/dist && printf '%s\n' \
   "import { spawn } from 'node:child_process';" \
   "const p = spawn('tsx', ['packages/services/src/scheduler.ts'], { stdio: 'inherit', cwd: '/app' });" \
