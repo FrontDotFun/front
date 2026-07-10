@@ -95,19 +95,21 @@ router.post(
         throw new ValidationError('Invalid capital amount — must be a numeric string');
       }
 
-      // Pool capacity — the ledger is internal accounting and can drift
-      // from reality; the protocol wallet's REAL balance is what will
-      // actually fund the swap. Validate against the smaller of the two
-      // so we never approve a position the wallet cannot fill.
+      // Pool capacity — the protocol wallet's REAL on-chain ETH balance is
+      // what actually fronts the swap, so that's the gate. The DB ledger
+      // is internal accounting and starts empty (no fees yet), so it must
+      // never block a position the funded wallet can genuinely fill. Keep
+      // a small gas reserve so the pool can always pay for its own txs.
       const [poolAgg, onchain] = await Promise.all([
         prisma.poolLedger.aggregate({ _sum: { amount: true } }),
         (await import('../lib/onchain')).getOnchainStats(),
       ]);
       const ledgerBalance = poolAgg._sum.amount ?? 0n;
+      const POOL_GAS_RESERVE = 200_000_000_000_000n; // 0.0002 ETH
       const poolBalance = onchain
-        ? (BigInt(onchain.poolWalletLamports) < ledgerBalance
-            ? BigInt(onchain.poolWalletLamports)
-            : ledgerBalance)
+        ? (BigInt(onchain.poolWalletLamports) > POOL_GAS_RESERVE
+            ? BigInt(onchain.poolWalletLamports) - POOL_GAS_RESERVE
+            : 0n)
         : ledgerBalance;
 
       // Validate position params

@@ -70,7 +70,7 @@ export function validatePositionOpen(
   if (protocolCapital > poolBalanceLamports) {
     errors.push(
       `The protocol pool doesn't have enough capital right now. ` +
-      `Your position needs ${formatSol(protocolCapital)} SOL from the pool, but only ${formatSol(poolBalanceLamports)} SOL is available. ` +
+      `Your position needs ${formatSol(protocolCapital)} ETH from the pool, but only ${formatSol(poolBalanceLamports)} ETH is available. ` +
       `Try a smaller position size, lower leverage, or wait for other positions to close.`,
     );
   }
