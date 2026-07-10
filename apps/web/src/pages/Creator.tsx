@@ -12,7 +12,7 @@ export const Creator: FC = () => {
 
   const handleSearch = async () => {
     const addr = walletAddress.trim();
-    if (!addr || addr.length < 32) return;
+    if (!addr || !/^0x[a-fA-F0-9]{40}$/.test(addr)) return;
 
     setLoading(true);
     setError(null);

@@ -508,14 +508,6 @@ export function listToken(
   });
 }
 
-export function verifyTokenListing(tokenAddress: string): Promise<{
-  verified: boolean;
-  isCreator: boolean;
-  feesRedirected: boolean;
-}> {
-  return request(`/tokens/${tokenAddress}/verify`);
-}
-
 // ── Market Data (GeckoTerminal via API — Robinhood Chain) ──
 
 export interface MarketToken {

@@ -58,7 +58,7 @@ export const ListToken: FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const addr = tokenAddress.trim();
-    if (!addr || addr.length < 32) return;
+    if (!addr || !/^0x[a-fA-F0-9]{40}$/.test(addr)) return;
 
     setLoading(true);
     setResult(null);
@@ -173,7 +173,7 @@ export const ListToken: FC = () => {
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={loading || tokenAddress.trim().length < 32}
+          disabled={loading || !/^0x[a-fA-F0-9]{40}$/.test(tokenAddress.trim())}
           style={{
             padding: '12px 0',
             fontSize: '0.93rem',
