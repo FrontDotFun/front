@@ -8,7 +8,20 @@
 // and Noxa (fun.noxa.fi) launches instead of Solana / pump.fun.
 // ──────────────────────────────────────────────
 
-const GT = 'https://api.geckoterminal.com/api/v2';
+// With a paid CoinGecko key the same GeckoTerminal endpoints are served
+// from the Pro API at ~500 req/min (vs ~30 free) — identical paths and
+// response shapes, just a different base + auth header.
+function gtBase(): string {
+  return (process.env.COINGECKO_API_KEY ?? '').trim()
+    ? 'https://pro-api.coingecko.com/api/v3/onchain'
+    : 'https://api.geckoterminal.com/api/v2';
+}
+function gtHeaders(): Record<string, string> {
+  const key = (process.env.COINGECKO_API_KEY ?? '').trim();
+  return key
+    ? { Accept: 'application/json', 'x-cg-pro-api-key': key }
+    : { Accept: 'application/json' };
+}
 export const GT_NETWORK = 'robinhood';
 
 /** WETH on Robinhood Chain — the reference asset for the hero feed. */
@@ -36,9 +49,7 @@ export interface OHLCVCandle {
 }
 
 async function gtFetch(path: string): Promise<any> {
-  const res = await fetch(`${GT}${path}`, {
-    headers: { Accept: 'application/json' },
-  });
+  const res = await fetch(`${gtBase()}${path}`, { headers: gtHeaders() });
   if (!res.ok) throw new Error(`GeckoTerminal ${res.status} on ${path}`);
   return res.json();
 }

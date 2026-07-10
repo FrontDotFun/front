@@ -10,7 +10,18 @@
 
 import { erc20Decimals, CONTRACTS } from '@front-protocol/evm';
 
-const GT = 'https://api.geckoterminal.com/api/v2';
+// Paid CoinGecko key → Pro API base (same GT endpoints, ~500 req/min)
+function gtBase(): string {
+  return (process.env.COINGECKO_API_KEY ?? '').trim()
+    ? 'https://pro-api.coingecko.com/api/v3/onchain'
+    : 'https://api.geckoterminal.com/api/v2';
+}
+function gtHeaders(): Record<string, string> {
+  const key = (process.env.COINGECKO_API_KEY ?? '').trim();
+  return key
+    ? { Accept: 'application/json', 'x-cg-pro-api-key': key }
+    : { Accept: 'application/json' };
+}
 const GT_NETWORK = 'robinhood';
 const WETH = CONTRACTS.WETH.toLowerCase();
 
@@ -54,8 +65,8 @@ export async function getTokenPricesEth(
   const usd = new Map<string, number>();
   for (const batch of batches) {
     const res = await fetch(
-      `${GT}/simple/networks/${GT_NETWORK}/token_price/${batch.join(',')}`,
-      { headers: { Accept: 'application/json' } },
+      `${gtBase()}/simple/networks/${GT_NETWORK}/token_price/${batch.join(',')}`,
+      { headers: gtHeaders() },
     );
     if (!res.ok) throw new Error(`GeckoTerminal ${res.status} on token_price`);
     const json = (await res.json()) as any;
@@ -89,8 +100,8 @@ export async function getTokenPricesEth(
 /** ETH/USD spot from the same GT feed. Returns 0 when unavailable. */
 export async function getEthUsd(): Promise<number> {
   const res = await fetch(
-    `${GT}/simple/networks/${GT_NETWORK}/token_price/${WETH}`,
-    { headers: { Accept: 'application/json' } },
+    `${gtBase()}/simple/networks/${GT_NETWORK}/token_price/${WETH}`,
+    { headers: gtHeaders() },
   );
   if (!res.ok) return 0;
   const json = (await res.json()) as any;

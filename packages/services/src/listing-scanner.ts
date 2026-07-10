@@ -33,7 +33,17 @@ function poolWalletAddress(): string {
 
 const MIN_FEE_SHARE_PCT = Math.min(100, Math.max(1, Number(process.env.SCALE_MIN_FEE_SHARE_PCT) || 51));
 
-const GT = 'https://api.geckoterminal.com/api/v2';
+function gtBase(): string {
+  return (process.env.COINGECKO_API_KEY ?? '').trim()
+    ? 'https://pro-api.coingecko.com/api/v3/onchain'
+    : 'https://api.geckoterminal.com/api/v2';
+}
+function gtHeaders(): Record<string, string> {
+  const key = (process.env.COINGECKO_API_KEY ?? '').trim();
+  return key
+    ? { Accept: 'application/json', 'x-cg-pro-api-key': key }
+    : { Accept: 'application/json' };
+}
 const GT_NETWORK = 'robinhood';
 
 /** Manually-verified Noxa fee redirects (comma-separated 0x addresses). */
@@ -105,8 +115,8 @@ async function checkAndListToken(mint: string): Promise<boolean> {
   let marketCapUsd = 0;
   let liquidityUsd = 0;
   try {
-    const res = await fetch(`${GT}/networks/${GT_NETWORK}/tokens/${addr}?include=top_pools`, {
-      headers: { Accept: 'application/json' },
+    const res = await fetch(`${gtBase()}/networks/${GT_NETWORK}/tokens/${addr}?include=top_pools`, {
+      headers: gtHeaders(),
     });
     if (res.ok) {
       const json = (await res.json()) as any;
