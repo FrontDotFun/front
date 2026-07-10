@@ -412,7 +412,7 @@ export const Trade: FC = () => {
                                 }}
                                 disabled={isClosing === String(pos.id)}
                               >
-                                {isClosing === String(pos.id) ? '...' : 'Close'}
+                                {isClosing === String(pos.id) ? '···' : 'SELL'}
                               </button>
                             </td>
                           </tr>
@@ -819,7 +819,7 @@ export const Trade: FC = () => {
                             whiteSpace: 'nowrap',
                           }}
                         >
-                          {isClosing === String(pos.id) ? 'Closing...' : 'Close'}
+                          {isClosing === String(pos.id) ? 'Selling…' : 'SELL'}
                         </motion.button>
                       </div>
                     );
