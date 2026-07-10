@@ -181,11 +181,11 @@ describe('Auth Routes', () => {
     });
 
     it('returns user data with valid token', async () => {
-      const token = issueToken(1, 'TestWallet123');
+      const token = issueToken(1, '0x1111111111111111111111111111111111111111');
       vi.mocked(prisma.user.findUnique).mockResolvedValue({
         id: 1,
         email: 'test@example.com',
-        walletAddress: 'TestWallet123',
+        walletAddress: '0x1111111111111111111111111111111111111111',
         createdAt: new Date(),
       } as any);
 
@@ -197,7 +197,7 @@ describe('Auth Routes', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.email).toBe('test@example.com');
-      expect(res.body.data.walletAddress).toBe('TestWallet123');
+      expect(res.body.data.walletAddress).toBe('0x1111111111111111111111111111111111111111');
     });
   });
 
@@ -232,7 +232,7 @@ describe('Auth Routes', () => {
     });
 
     it('rejects missing destination address', async () => {
-      const token = issueToken(1, 'TestWallet123');
+      const token = issueToken(1, '0x1111111111111111111111111111111111111111');
 
       const { agent } = createTestApp();
       const res = await agent
@@ -245,7 +245,7 @@ describe('Auth Routes', () => {
     });
 
     it('rejects invalid Solana address', async () => {
-      const token = issueToken(1, 'TestWallet123');
+      const token = issueToken(1, '0x1111111111111111111111111111111111111111');
 
       const { agent } = createTestApp();
       const res = await agent

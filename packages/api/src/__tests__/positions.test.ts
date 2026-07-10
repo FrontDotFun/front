@@ -8,7 +8,7 @@ import { prisma } from '@front-protocol/database';
 import { issueToken } from '../middleware/auth';
 
 describe('Position Routes', () => {
-  const testWallet = 'TestWallet12345678901234567890123456';
+  const testWallet = '0x1111111111111111111111111111111111111111';
   let authToken: string;
 
   beforeEach(() => {
