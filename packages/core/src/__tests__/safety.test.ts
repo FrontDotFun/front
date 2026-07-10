@@ -7,10 +7,10 @@ import {
   calculateInsuranceFundTarget,
   calculateInsuranceDeposit,
 } from '../safety.js';
-import { LAMPORTS_PER_SOL, SAFETY_BUFFER_BPS, BPS } from '../types.js';
+import { WEI_PER_ETH, SAFETY_BUFFER_BPS, BPS } from '../types.js';
 import { TIER_CONFIGS } from '../pricing.js';
 
-const ONE_SOL = LAMPORTS_PER_SOL;
+const ONE_SOL = WEI_PER_ETH;
 
 // ──────────────────────────────────────────────
 // estimateSlippageRisk

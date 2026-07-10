@@ -5,9 +5,9 @@ import {
   calculateMaxLoss,
   generateScenarios,
 } from '../pnl.js';
-import { LAMPORTS_PER_SOL, PROFIT_SPLIT, BPS } from '../types.js';
+import { WEI_PER_ETH, PROFIT_SPLIT, BPS } from '../types.js';
 
-const ONE_SOL = LAMPORTS_PER_SOL;
+const ONE_SOL = WEI_PER_ETH;
 
 // ──────────────────────────────────────────────
 // calculatePnL — Profitable case
@@ -45,15 +45,21 @@ describe('calculatePnL — profitable position', () => {
   it('protocol revenue is flat fee only', () => {
     const result = calculatePnL(1.0, 2.0, ONE_SOL, 2n * ONE_SOL, 'degen');
     expect(result.totalProtocolRevenueLamports).toBe(result.flatFeeLamports);
-    // Degen fee = 5% of 3 SOL = 0.15 SOL = 150_000_000 lamports
-    expect(result.flatFeeLamports).toBe(150_000_000n);
+    // Degen fee = 5% of the 3 ETH position
+    expect(result.flatFeeLamports).toBe((3n * ONE_SOL * 500n) / 10_000n);
   });
 
   it('handles modest profit (10% price increase)', () => {
     const result = calculatePnL(1.0, 1.1, ONE_SOL, ONE_SOL, 'bonded');
     expect(result.isProfitable).toBe(true);
-    // Total capital 2 SOL, 10% increase → value 2.2 SOL, profit 0.2 SOL
-    expect(result.totalProfitLamports).toBe(200_000_000n);
+    // Total capital 2 ETH, 10% increase → value 2.2 ETH, profit 0.2 ETH.
+    // The ratio math routes through Number, so allow float-mantissa noise
+    // (< 1000 wei = 1e-15 ETH — economically zero at wei scale).
+    const expected = (2n * ONE_SOL) / 10n;
+    const diff = result.totalProfitLamports > expected
+      ? result.totalProfitLamports - expected
+      : expected - result.totalProfitLamports;
+    expect(diff < 1000n).toBe(true);
   });
 });
 

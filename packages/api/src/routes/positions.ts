@@ -12,7 +12,6 @@ import {
   calculatePositionSize,
   calculateFlatFee,
   getExitThresholdPercent,
-  LAMPORTS_PER_SOL,
   type Tier,
 } from '@front-protocol/core';
 import {

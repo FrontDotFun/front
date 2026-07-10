@@ -10,7 +10,7 @@
 //
 
 import {
-  LAMPORTS_PER_SOL,
+  WEI_PER_ETH,
   SAFETY_BUFFER_BPS,
   INSURANCE_FUND_TARGET_BPS,
   INSURANCE_DEPOSIT_RATE_BPS,
@@ -41,7 +41,7 @@ export function calculateSafeExitThreshold(tier: Tier): number {
  *
  * @param positionSizeLamports - Total position size
  * @param liquidityUsd - Token's total liquidity in USD
- * @param solPriceUsd - Current SOL price in USD
+ * @param solPriceUsd - Current ETH price in USD (param name is legacy)
  * @returns Risk score 0-100 (0 = no risk, 100 = extremely risky)
  */
 export function estimateSlippageRisk(
@@ -51,8 +51,8 @@ export function estimateSlippageRisk(
 ): number {
   if (liquidityUsd <= 0 || solPriceUsd <= 0) return 100;
 
-  const positionSol = Number(positionSizeLamports) / Number(LAMPORTS_PER_SOL);
-  const positionUsd = positionSol * solPriceUsd;
+  const positionEth = Number(positionSizeLamports) / Number(WEI_PER_ETH);
+  const positionUsd = positionEth * solPriceUsd;
 
   // Position as percentage of total liquidity
   const impactPct = (positionUsd / liquidityUsd) * 100;
@@ -74,7 +74,7 @@ export function estimateSlippageRisk(
  * excessive market impact on exit.
  *
  * @param liquidityUsd - Token's total liquidity in USD
- * @param solPriceUsd - Current SOL price in USD
+ * @param solPriceUsd - Current ETH price in USD (param name is legacy)
  * @param tier - Risk tier
  * @returns Maximum position size in lamports
  */
@@ -97,8 +97,8 @@ export function maxSafePositionSize(
   };
 
   const maxPositionUsd = liquidityUsd * (maxImpactPct[tier] / 100);
-  const maxPositionSol = maxPositionUsd / solPriceUsd;
-  return BigInt(Math.floor(maxPositionSol * Number(LAMPORTS_PER_SOL)));
+  const maxPositionEth = maxPositionUsd / solPriceUsd;
+  return BigInt(Math.floor(maxPositionEth * Number(WEI_PER_ETH)));
 }
 
 /**

@@ -7,13 +7,13 @@ import {
   timeRemainingMs,
 } from '../position.js';
 import {
-  LAMPORTS_PER_SOL,
+  WEI_PER_ETH,
   MAX_POSITION_DURATION_MS,
   SAFETY_BUFFER_BPS,
 } from '../types.js';
 import { TIER_CONFIGS } from '../pricing.js';
 
-const ONE_SOL = LAMPORTS_PER_SOL;
+const ONE_SOL = WEI_PER_ETH;
 
 // ──────────────────────────────────────────────
 // shouldAutoClose
@@ -115,9 +115,9 @@ describe('validatePositionOpen', () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it('rejects capital below minimum (0.01 SOL)', () => {
+  it('rejects capital below minimum (0.001 ETH)', () => {
     const result = validatePositionOpen(
-      { ...validParams, userCapitalLamports: ONE_SOL / 200n }, // 0.005 SOL
+      { ...validParams, userCapitalLamports: ONE_SOL / 2000n }, // 0.0005 ETH
       tier,
       bigPool,
     );
@@ -125,7 +125,7 @@ describe('validatePositionOpen', () => {
     expect(result.errors).toContainEqual(expect.stringContaining('Minimum collateral'));
   });
 
-  it('rejects capital above maximum (10 SOL)', () => {
+  it('rejects capital above maximum (1 ETH)', () => {
     const result = validatePositionOpen(
       { ...validParams, userCapitalLamports: ONE_SOL * 11n },
       tier,
@@ -135,18 +135,18 @@ describe('validatePositionOpen', () => {
     expect(result.errors).toContainEqual(expect.stringContaining('Maximum collateral'));
   });
 
-  it('accepts capital at exact minimum (0.01 SOL)', () => {
+  it('accepts capital at exact minimum (0.001 ETH)', () => {
     const result = validatePositionOpen(
-      { ...validParams, userCapitalLamports: ONE_SOL / 100n },
+      { ...validParams, userCapitalLamports: ONE_SOL / 1000n },
       tier,
       bigPool,
     );
     expect(result.valid).toBe(true);
   });
 
-  it('accepts capital at exact maximum (10 SOL)', () => {
+  it('accepts capital at exact maximum (1 ETH)', () => {
     const result = validatePositionOpen(
-      { ...validParams, userCapitalLamports: ONE_SOL * 10n },
+      { ...validParams, userCapitalLamports: ONE_SOL },
       tier,
       bigPool,
     );

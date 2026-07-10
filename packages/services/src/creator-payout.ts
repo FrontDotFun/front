@@ -8,7 +8,7 @@
 
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL, formatSol } from '@front-protocol/core';
+import { formatSol } from '@front-protocol/core';
 import { redisConnection, QUEUE_NAMES } from './queues.js';
 
 const PREFIX = '[creator-payout]';
@@ -29,7 +29,7 @@ async function processCreatorPayout(job: Job<CreatorPayoutJobData>): Promise<voi
   const amount = BigInt(amountStr);
 
   console.log(
-    `${PREFIX} Recording payout for creator ${creatorWallet}: ${formatSol(amount)} SOL (position #${positionId})`,
+    `${PREFIX} Recording payout for creator ${creatorWallet}: ${formatSol(amount)} ETH (position #${positionId})`,
   );
 
   try {
@@ -67,7 +67,7 @@ async function processCreatorPayout(job: Job<CreatorPayoutJobData>): Promise<voi
     ]);
 
     console.log(
-      `${PREFIX} ✅ Created claimable payout of ${formatSol(amount)} SOL for ${creatorWallet} ` +
+      `${PREFIX} ✅ Created claimable payout of ${formatSol(amount)} ETH for ${creatorWallet} ` +
         `(${token.symbol ?? `token #${tokenId}`}, position #${positionId})`,
     );
     // NOTE: Actual SOL transfer happens when creator calls the claim endpoint.

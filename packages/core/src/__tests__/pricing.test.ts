@@ -8,7 +8,7 @@ import {
   TIER_CONFIGS,
   BLOCKED_LIQUIDITY_THRESHOLD_USD,
 } from '../pricing.js';
-import { LAMPORTS_PER_SOL } from '../types.js';
+import { WEI_PER_ETH } from '../types.js';
 
 // ──────────────────────────────────────────────
 // determineTier
@@ -98,32 +98,32 @@ describe('determineTier', () => {
 // ──────────────────────────────────────────────
 
 describe('calculateFlatFee', () => {
-  const ONE_SOL = LAMPORTS_PER_SOL;
+  const ONE_SOL = WEI_PER_ETH;
 
   it('calculates 2% fee for bonded tier', () => {
     // 1 SOL position → 2% = 0.02 SOL = 20_000_000 lamports
     const fee = calculateFlatFee(ONE_SOL, 'bonded');
     expect(fee).toBe(ONE_SOL * 200n / 10_000n);
-    expect(fee).toBe(20_000_000n);
+    expect(fee).toBe((ONE_SOL * 200n) / 10_000n);
   });
 
   it('calculates 3% fee for rising tier', () => {
     // 1 SOL position → 3% = 0.03 SOL = 30_000_000 lamports
     const fee = calculateFlatFee(ONE_SOL, 'rising');
-    expect(fee).toBe(30_000_000n);
+    expect(fee).toBe((ONE_SOL * 300n) / 10_000n);
   });
 
   it('calculates 5% fee for degen tier', () => {
     // 1 SOL position → 5% = 0.05 SOL = 50_000_000 lamports
     const fee = calculateFlatFee(ONE_SOL, 'degen');
-    expect(fee).toBe(50_000_000n);
+    expect(fee).toBe((ONE_SOL * 500n) / 10_000n);
   });
 
   it('scales correctly with larger position sizes', () => {
     const tenSol = ONE_SOL * 10n;
     const fee = calculateFlatFee(tenSol, 'bonded');
     // 10 SOL * 2% = 0.2 SOL
-    expect(fee).toBe(200_000_000n);
+    expect(fee).toBe((ONE_SOL * 10n * 200n) / 10_000n);
   });
 
   it('handles very small amounts with BigInt floor division', () => {
@@ -204,7 +204,7 @@ describe('isValidLeverage', () => {
 // ──────────────────────────────────────────────
 
 describe('calculateProtocolCapital', () => {
-  const ONE_SOL = LAMPORTS_PER_SOL;
+  const ONE_SOL = WEI_PER_ETH;
 
   it('calculates protocol capital at 3x leverage', () => {
     // 1 SOL at 3x → protocol provides 2 SOL
@@ -236,7 +236,7 @@ describe('calculateProtocolCapital', () => {
 // ──────────────────────────────────────────────
 
 describe('calculatePositionSize', () => {
-  const ONE_SOL = LAMPORTS_PER_SOL;
+  const ONE_SOL = WEI_PER_ETH;
 
   it('calculates total position size at 3x leverage', () => {
     const result = calculatePositionSize(ONE_SOL, 3);

@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { splitRevenue, calculateFullDistribution } from '../revenue.js';
-import { LAMPORTS_PER_SOL, REVENUE_SPLIT, BPS } from '../types.js';
+import { WEI_PER_ETH, REVENUE_SPLIT, BPS } from '../types.js';
 import { calculatePnL } from '../pnl.js';
 
-const ONE_SOL = LAMPORTS_PER_SOL;
+const ONE_SOL = WEI_PER_ETH;
 
 // ──────────────────────────────────────────────
 // splitRevenue
@@ -13,12 +13,12 @@ describe('splitRevenue', () => {
   it('splits 30/20/50 correctly for 1 SOL', () => {
     const result = splitRevenue(ONE_SOL);
 
-    // 30% of 1 SOL = 300_000_000
-    expect(result.creatorPayoutLamports).toBe(300_000_000n);
-    // 20% of 1 SOL = 200_000_000
-    expect(result.burnAmountLamports).toBe(200_000_000n);
-    // 50% of 1 SOL = 500_000_000
-    expect(result.poolReturnLamports).toBe(500_000_000n);
+    // 30% of 1 ETH
+    expect(result.creatorPayoutLamports).toBe((ONE_SOL * 30n) / 100n);
+    // 20% of 1 ETH
+    expect(result.burnAmountLamports).toBe((ONE_SOL * 20n) / 100n);
+    // 50% of 1 ETH
+    expect(result.poolReturnLamports).toBe((ONE_SOL * 50n) / 100n);
   });
 
   it('all splits sum to total revenue', () => {

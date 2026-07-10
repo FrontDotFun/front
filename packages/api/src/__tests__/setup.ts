@@ -104,7 +104,7 @@ vi.mock('@front-protocol/services', () => ({
 
 // ─── Mock @front-protocol/core ──────────────────
 vi.mock('@front-protocol/core', () => ({
-  LAMPORTS_PER_SOL: BigInt(1_000_000_000),
+  WEI_PER_ETH: 10n ** 18n,
   getTierConfig: vi.fn(() => ({
     name: 'Bronze',
     label: 'DEGEN',

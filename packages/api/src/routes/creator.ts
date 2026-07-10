@@ -4,15 +4,15 @@
 
 import { Router } from 'express';
 import { prisma } from '@front-protocol/database';
-import { LAMPORTS_PER_SOL, getTierConfig, type Tier } from '@front-protocol/core';
+import { WEI_PER_ETH, getTierConfig, type Tier } from '@front-protocol/core';
 import { verifyWalletSignature, type AuthenticatedRequest } from '../middleware/auth';
 import { sendSuccess, sendError, sendPaginated } from '../lib/response';
 import { ValidationError, NotFoundError, ForbiddenError, InsufficientFundsError } from '../lib/errors';
 
 const router = Router();
 
-/** Minimum claimable amount: 0.5 SOL in lamports */
-const MIN_CLAIM_LAMPORTS = LAMPORTS_PER_SOL / 2n;
+/** Minimum claimable amount: 0.05 ETH in wei (≈ the old 0.5 SOL in USD) */
+const MIN_CLAIM_LAMPORTS = WEI_PER_ETH / 20n;
 
 /**
  * GET /creator/dashboard
@@ -242,7 +242,7 @@ router.post('/claim', verifyWalletSignature, async (req, res) => {
 
     if (estimatedAmount < MIN_CLAIM_LAMPORTS) {
       throw new InsufficientFundsError(
-        `Minimum claim amount is 0.5 SOL. Current claimable: ${(Number(estimatedAmount) / 1e9).toFixed(4)} SOL`,
+        `Minimum claim amount is 0.05 ETH. Current claimable: ${(Number(estimatedAmount) / 1e18).toFixed(6)} ETH`,
       );
     }
 

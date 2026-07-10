@@ -13,7 +13,6 @@
 import { Worker, type Job } from 'bullmq';
 import { prisma } from '@front-protocol/database';
 import {
-  LAMPORTS_PER_SOL,
   formatSol,
   calculateInsuranceFundTarget,
   calculateInsuranceDeposit,
@@ -78,7 +77,7 @@ async function processInsuranceFundJob(job: Job<InsuranceFundJobData>): Promise<
 
         if (currentBalance >= target) {
           console.log(
-            `${PREFIX} Fund at target (${formatSol(currentBalance)} / ${formatSol(target)} SOL), skipping deposit`,
+            `${PREFIX} Fund at target (${formatSol(currentBalance)} / ${formatSol(target)} ETH), skipping deposit`,
           );
           return;
         }
@@ -101,8 +100,8 @@ async function processInsuranceFundJob(job: Job<InsuranceFundJobData>): Promise<
         });
 
         console.log(
-          `${PREFIX} Deposited ${formatSol(actualDeposit)} SOL | ` +
-          `Balance: ${formatSol(currentBalance + actualDeposit)} / ${formatSol(target)} SOL`,
+          `${PREFIX} Deposited ${formatSol(actualDeposit)} ETH | ` +
+          `Balance: ${formatSol(currentBalance + actualDeposit)} / ${formatSol(target)} ETH`,
         );
         break;
       }
@@ -114,7 +113,7 @@ async function processInsuranceFundJob(job: Job<InsuranceFundJobData>): Promise<
         const currentBalance = await getInsuranceFundBalance();
         if (amount > currentBalance) {
           console.error(
-            `${PREFIX} ⚠️ Withdrawal exceeds balance! Requested: ${formatSol(amount)} SOL, Balance: ${formatSol(currentBalance)} SOL`,
+            `${PREFIX} ⚠️ Withdrawal exceeds balance! Requested: ${formatSol(amount)} ETH, Balance: ${formatSol(currentBalance)} ETH`,
           );
           // Still process but log the warning — this is a critical event
         }
@@ -131,8 +130,8 @@ async function processInsuranceFundJob(job: Job<InsuranceFundJobData>): Promise<
         });
 
         console.log(
-          `${PREFIX} ⚠️ Withdrew ${formatSol(amount)} SOL for: ${reason || 'unknown'} | ` +
-          `Remaining: ${formatSol(currentBalance - amount)} SOL`,
+          `${PREFIX} ⚠️ Withdrew ${formatSol(amount)} ETH for: ${reason || 'unknown'} | ` +
+          `Remaining: ${formatSol(currentBalance - amount)} ETH`,
         );
         break;
       }
@@ -146,7 +145,7 @@ async function processInsuranceFundJob(job: Job<InsuranceFundJobData>): Promise<
           : 0;
 
         console.log(
-          `${PREFIX} Fund status: ${formatSol(currentBalance)} / ${formatSol(target)} SOL (${pct.toFixed(2)}% of pool)`,
+          `${PREFIX} Fund status: ${formatSol(currentBalance)} / ${formatSol(target)} ETH (${pct.toFixed(2)}% of pool)`,
         );
         break;
       }

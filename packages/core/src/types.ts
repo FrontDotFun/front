@@ -194,11 +194,11 @@ export const BPS = {
 } as const;
 
 /** Lamports per SOL */
-export const LAMPORTS_PER_SOL = 1_000_000_000n;
+export const WEI_PER_ETH = 10n ** 18n;
 
 /** Format lamports as SOL string for logging */
 export function formatSol(lamports: bigint): string {
-  return (Number(lamports) / Number(LAMPORTS_PER_SOL)).toFixed(4);
+  return (Number(lamports) / Number(WEI_PER_ETH)).toFixed(6);
 }
 
 /** Max position duration in milliseconds (24 hours) */

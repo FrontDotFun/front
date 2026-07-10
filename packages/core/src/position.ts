@@ -7,7 +7,7 @@ import {
   PositionPreview,
   PositionOpenParams,
   MAX_POSITION_DURATION_MS,
-  LAMPORTS_PER_SOL,
+  WEI_PER_ETH,
   SAFETY_BUFFER_BPS,
   BPS,
 } from './types.js';
@@ -32,11 +32,11 @@ export interface ValidationResult {
   errors: string[];
 }
 
-/** Minimum user capital: 0.01 SOL */
-const MIN_USER_CAPITAL_LAMPORTS = LAMPORTS_PER_SOL / 100n;
+/** Minimum user capital: 0.001 ETH (~a few dollars) */
+const MIN_USER_CAPITAL_LAMPORTS = WEI_PER_ETH / 1000n;
 
-/** Maximum user capital: 10 SOL */
-const MAX_USER_CAPITAL_LAMPORTS = LAMPORTS_PER_SOL * 10n;
+/** Maximum user capital: 1 ETH per position (≈ the old 10 SOL cap in USD) */
+const MAX_USER_CAPITAL_LAMPORTS = WEI_PER_ETH;
 
 /**
  * Validate parameters for opening a new position.
@@ -50,10 +50,10 @@ export function validatePositionOpen(
 
   // Validate capital bounds
   if (params.userCapitalLamports < MIN_USER_CAPITAL_LAMPORTS) {
-    errors.push(`Minimum collateral is 0.01 SOL. Please increase your amount.`);
+    errors.push(`Minimum collateral is 0.001 ETH. Please increase your amount.`);
   }
   if (params.userCapitalLamports > MAX_USER_CAPITAL_LAMPORTS) {
-    errors.push(`Maximum collateral is 10 SOL per position. Please reduce your amount.`);
+    errors.push(`Maximum collateral is 1 ETH per position. Please reduce your amount.`);
   }
 
   // Validate leverage
