@@ -71,24 +71,12 @@ async function executeTokenSell(
     `${PREFIX} Selling ${tokensBought} tokens of ${tokenAddress} via Uniswap V3`,
   );
 
-  let minOutWei = 1n;
-  try {
-    const prices = await getTokenPricesEth([tokenAddress]);
-    const p = prices.get(tokenAddress.toLowerCase());
-    if (p && p.weiPerRawUnit > 0) {
-      const expectedWei = BigInt(Math.floor(Number(tokensBought) * p.weiPerRawUnit));
-      const floor = (expectedWei * 9_600n) / 10_000n; // 3% slippage + 1% pool fee
-      if (floor > 0n) minOutWei = floor;
-    }
-  } catch {
-    // price feed down — proceed with minimal floor rather than strand the position
-  }
-
+  // amountOutMinimum is quoted on-chain inside swapTokenForEth (QuoterV2)
   const result = await swapTokenForEth(
     protocolAccount,
     tokenAddress,
     tokensBought,
-    minOutWei,
+    300, // 3% slippage (bps)
   );
 
   console.log(

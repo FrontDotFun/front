@@ -247,18 +247,13 @@ router.post(
       let entryPrice: number | undefined;
 
       try {
-        // Slippage floor from GeckoTerminal price: expected tokens out, minus slippage
-        const decimals = await erc20Decimals(tokenAddress);
-        const positionEth = Number(positionSize) / 1e18;
-        const expectedTokens = (positionEth * ethPriceUsd) / tokenPriceUsd;
-        const expectedRaw = BigInt(Math.floor(expectedTokens * Math.pow(10, decimals)));
-        const minOut = (expectedRaw * BigInt(10_000 - slippage - 100)) / 10_000n; // extra 1% for pool fee
-
+        // amountOutMinimum is quoted on-chain inside swapEthForToken
+        // (QuoterV2) — real pool state, not a mid-price estimate.
         const swapResult = await swapEthForToken(
           protocolAccount,
           tokenAddress,
           positionSize, // full leveraged amount, in wei
-          minOut > 0n ? minOut : 1n,
+          slippage,     // basis points
         );
 
         openTx = swapResult.txHash;
@@ -422,30 +417,12 @@ router.post(
       let solReceived: bigint; // wei of ETH received (legacy field name)
 
       try {
-        // Slippage floor: expected ETH out from GeckoTerminal price, minus slippage
-        let minOutWei = 1n;
-        try {
-          const [ethUsd, gtToken, decimals] = await Promise.all([
-            fetchEthUsd(),
-            gtFetchToken(position.token.address),
-            erc20Decimals(position.token.address),
-          ]);
-          if (ethUsd > 0 && gtToken.price > 0) {
-            const tokensHuman = Number(tokensBought) / Math.pow(10, decimals);
-            const expectedEth = (tokensHuman * gtToken.price) / ethUsd;
-            const expectedWei = BigInt(Math.floor(expectedEth * 1e18));
-            const floor = (expectedWei * BigInt(10_000 - slippage - 100)) / 10_000n; // extra 1% pool fee
-            if (floor > 0n) minOutWei = floor;
-          }
-        } catch {
-          // price source down — fall back to minimal floor; swap still reverts on manipulation via pool state
-        }
-
+        // amountOutMinimum quoted on-chain inside swapTokenForEth (QuoterV2)
         const sellResult = await swapTokenForEth(
           protocolAccount,
           position.token.address,
           tokensBought,
-          minOutWei,
+          slippage, // basis points
         );
         closeTx = sellResult.txHash;
         solReceived = sellResult.amountOut;

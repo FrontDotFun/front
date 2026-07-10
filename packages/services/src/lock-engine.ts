@@ -67,24 +67,12 @@ async function executeFrontBuy(solAmountLamports: bigint): Promise<{
     `${PREFIX} Buying $SCALE (${FRONT_TOKEN_MINT.substring(0, 10)}…) with ${fmtEth(solAmountLamports)} ETH via Uniswap V3`,
   );
 
-  let minOut = 1n;
-  try {
-    const prices = await getTokenPricesEth([FRONT_TOKEN_MINT]);
-    const p = prices.get(FRONT_TOKEN_MINT.toLowerCase());
-    if (p && p.weiPerRawUnit > 0) {
-      const expected = BigInt(Math.floor(Number(solAmountLamports) / p.weiPerRawUnit));
-      const floor = (expected * 9_600n) / 10_000n; // 3% slippage + 1% pool fee
-      if (floor > 0n) minOut = floor;
-    }
-  } catch {
-    // price feed down — pool state is the fallback defense
-  }
-
+  // amountOutMinimum is quoted on-chain inside swapEthForToken (QuoterV2)
   const { txHash, amountOut: tokensReceived } = await swapEthForToken(
     protocolAccount,
     FRONT_TOKEN_MINT,
     solAmountLamports,
-    minOut,
+    300, // 3% slippage (bps)
   );
 
   console.log(

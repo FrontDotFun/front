@@ -44,6 +44,10 @@ export const CONTRACTS = {
   WETH: '0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73' as Address,
   UNIV3_FACTORY: '0x1f7D7550B1B028f7571e69A784071F0205fd2EfA' as Address,
   SWAP_ROUTER_02: '0xCaf681a66D020601342297493863E78C959E5cb2' as Address,
+  // Uniswap V3 QuoterV2 (from Noxa's Robinhood chain config) — used to
+  // size amountOutMinimum from real pool state instead of a mid-price
+  // estimate, which reverts "Too little received" on thin pools.
+  QUOTER_V2: '0x33e885eD0Ec9bF04EcfB19341582aADCb4c8A9E7' as Address,
 } as const;
 
 /** Noxa launches pools at the 1% fee tier. */
@@ -226,6 +230,10 @@ const routerAbi = parseAbi([
   'function exactInputSingle((address tokenIn, address tokenOut, uint24 fee, address recipient, uint256 amountIn, uint256 amountOutMinimum, uint160 sqrtPriceLimitX96)) payable returns (uint256 amountOut)',
 ]);
 
+const quoterAbi = parseAbi([
+  'function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96)) returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)',
+]);
+
 const wethAbi = parseAbi([
   'function withdraw(uint256 wad)',
   'function deposit() payable',
@@ -236,19 +244,62 @@ export interface SwapResult {
   amountOut: bigint;
 }
 
+/** Default swap slippage tolerance (basis points). */
+const DEFAULT_SLIPPAGE_BPS = 300; // 3%
+
+/**
+ * Real expected output for an exact-input swap, quoted against live pool
+ * state via Uniswap V3's QuoterV2. This is the ONLY reliable basis for
+ * amountOutMinimum — an external mid-price estimate ignores price impact
+ * and reverts "Too little received" on thin pools.
+ */
+export async function quoteExactInput(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: bigint,
+  feeTier = NOXA_FEE_TIER,
+): Promise<bigint> {
+  const { result } = await getPublicClient().simulateContract({
+    address: CONTRACTS.QUOTER_V2,
+    abi: quoterAbi,
+    functionName: 'quoteExactInputSingle',
+    args: [{ tokenIn: tokenIn as Address, tokenOut: tokenOut as Address, amountIn, fee: feeTier, sqrtPriceLimitX96: 0n }],
+  });
+  return result[0];
+}
+
+/** minOut from a live quote minus slippage; falls back to 1 wei if the
+ *  quote is unavailable (pool state is still the final on-chain guard). */
+async function minOutFromQuote(
+  tokenIn: string,
+  tokenOut: string,
+  amountIn: bigint,
+  slippageBps: number,
+  feeTier: number,
+): Promise<bigint> {
+  try {
+    const quote = await quoteExactInput(tokenIn, tokenOut, amountIn, feeTier);
+    const floor = (quote * BigInt(10_000 - Math.min(slippageBps, 9_999))) / 10_000n;
+    return floor > 0n ? floor : 1n;
+  } catch {
+    return 1n;
+  }
+}
+
 /**
  * Buy `token` with native ETH via SwapRouter02 (router wraps ETH).
- * amountOutMinimum comes from the caller's price source + slippage.
+ * amountOutMinimum is quoted on-chain against real pool state.
  */
 export async function swapEthForToken(
   account: PrivateKeyAccount,
   token: string,
   amountInWei: bigint,
-  minOut: bigint,
+  slippageBps = DEFAULT_SLIPPAGE_BPS,
   feeTier = NOXA_FEE_TIER,
 ): Promise<SwapResult> {
   const client = getPublicClient();
   const before = await erc20Balance(token, account.address);
+  const minOut = await minOutFromQuote(CONTRACTS.WETH, token, amountInWei, slippageBps, feeTier);
 
   const wallet = walletClientFor(account);
   const hash = await wallet.sendTransaction({
@@ -277,12 +328,13 @@ export async function swapEthForToken(
 
 /**
  * Sell `token` back to native ETH: approve → swap to WETH → unwrap.
+ * amountOutMinimum is quoted on-chain against real pool state.
  */
 export async function swapTokenForEth(
   account: PrivateKeyAccount,
   token: string,
   amountIn: bigint,
-  minOutWei: bigint,
+  slippageBps = DEFAULT_SLIPPAGE_BPS,
   feeTier = NOXA_FEE_TIER,
 ): Promise<SwapResult> {
   const client = getPublicClient();
@@ -302,6 +354,7 @@ export async function swapTokenForEth(
   }
 
   // 2. swap token → WETH
+  const minOutWei = await minOutFromQuote(token, CONTRACTS.WETH, amountIn, slippageBps, feeTier);
   const wethBefore = await erc20Balance(CONTRACTS.WETH, account.address);
   const swapHash = await wallet.writeContract({
     address: CONTRACTS.SWAP_ROUTER_02,
