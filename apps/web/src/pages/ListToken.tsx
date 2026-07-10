@@ -136,6 +136,26 @@ export const ListToken: FC = () => {
         <div style={shotFrame}>
           <img src="/guide/noxa-feewallet.png" alt="Noxa advanced settings — CUSTOM FEE WALLET input where the SCALE pool wallet address goes" style={shotImg} loading="lazy" />
         </div>
+        <div style={{
+          marginTop: 12,
+          padding: '12px 14px',
+          border: '2px solid #ff4d4d',
+          background: 'rgba(255, 77, 77, 0.08)',
+          color: '#ff4d4d',
+          fontSize: '0.85rem',
+          fontWeight: 700,
+          lineHeight: 1.5,
+        }}>
+          ⚠ WARNING — INITIAL BUY GOES TO THE FEE WALLET.
+          Noxa sends any INITIAL BUY tokens to the custom fee wallet. If you set the
+          fee wallet to the SCALE pool AND do an initial buy in the same launch, your
+          initial-buy supply is sent to the protocol wallet and CANNOT be returned.
+          <span style={{ display: 'block', marginTop: 8, color: '#f0f4e4', fontWeight: 400 }}>
+            Safe paths: launch with <b>INITIAL BUY = 0</b> and buy from your own wallet after —
+            or launch with your own wallet as fee wallet, take your initial buy, then redirect
+            fees to the pool afterwards via Noxa → Manage.
+          </span>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 12, padding: '10px 12px', border: '1px solid var(--border-hover)', background: 'var(--bg-2)' }}>
           <span className="text-muted" style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.5px', flexShrink: 0 }}>
             Pool wallet
