@@ -339,6 +339,8 @@ export interface ProtocolStatsResponse {
   poolSizeLamports: string;
   poolLedgerLamports?: string;
   poolWalletAddress?: string | null;
+  /** protocol $SCALE token — Trade page default */
+  scaleToken?: string | null;
   poolSourceOnchain?: boolean;
   /** $SCALE locked supply, read on-chain */
   frontLockedTokens?: number | null;

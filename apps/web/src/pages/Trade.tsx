@@ -65,26 +65,35 @@ export const Trade: FC = () => {
   const tokenAddrFromUrl = searchParams.get('token');
   const lastLoadedAddr = useRef<string | null>(null);
 
-  // ── Auto-select token from URL ?token= param ──
+  // ── Auto-select token: URL ?token= param, else the featured $SCALE token ──
+  const [featuredToken, setFeaturedToken] = useState<string | null>(null);
   useEffect(() => {
-    if (!tokenAddrFromUrl) return;
-    if (tokenAddrFromUrl === lastLoadedAddr.current) return;
-    lastLoadedAddr.current = tokenAddrFromUrl;
+    if (tokenAddrFromUrl) return; // explicit token wins
+    api.getProtocolStats()
+      .then((s) => setFeaturedToken(s.scaleToken ?? null))
+      .catch(() => setFeaturedToken(null));
+  }, [tokenAddrFromUrl]);
 
-    api.getTokenDetails(tokenAddrFromUrl)
+  useEffect(() => {
+    const addr = tokenAddrFromUrl || featuredToken;
+    if (!addr) return;
+    if (addr === lastLoadedAddr.current) return;
+    lastLoadedAddr.current = addr;
+
+    api.getTokenDetails(addr)
       .then((info) => {
         selectToken(info);
       })
       .catch(() => {
-        // Token not in our DB — create a minimal token for chart display
+        // Not in our DB yet — minimal token so the live chart still renders
         selectToken({
-          address: tokenAddrFromUrl,
-          name: searchParams.get('name') || 'Unknown',
-          symbol: searchParams.get('symbol') || tokenAddrFromUrl.slice(0, 6),
+          address: addr,
+          name: searchParams.get('name') || 'SCALE',
+          symbol: searchParams.get('symbol') || addr.slice(0, 6),
           tier: '',
         });
       });
-  }, [tokenAddrFromUrl, selectToken, searchParams]);
+  }, [tokenAddrFromUrl, featuredToken, selectToken, searchParams]);
 
   // ── Check if token is listed on SCALE ──
   useEffect(() => {

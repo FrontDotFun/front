@@ -76,6 +76,8 @@ router.get('/stats', publicLimiter, async (req, res) => {
       poolLedgerLamports: String(poolAgg._sum.amount ?? 0n),
       poolWalletAddress: onchain?.poolWalletAddress ?? null,
       poolSourceOnchain: onchain != null,
+      // The protocol's own $SCALE token — the Trade page features it by default
+      scaleToken: (process.env.FRONT_TOKEN_MINT || '').trim() || null,
       frontLockedTokens: onchain?.frontLockedTokens ?? null,
       frontTotalSupply: onchain?.frontTotalSupply ?? null,
       frontLockedPct: onchain?.frontLockedPct ?? null,
