@@ -15,8 +15,6 @@ import { ValidationError, NotFoundError, InsufficientFundsError } from '../lib/e
 
 const router = Router();
 
-// Base58 character set for address validation
-const BASE58_REGEX = /^[1-9A-HJ-NP-Za-km-z]+$/;
 
 /**
  * GET /wallet/balance
@@ -63,12 +61,12 @@ router.post('/withdraw', verifyWalletSignature, async (req, res) => {
       ]);
     }
 
-    // ── Validate destination address format ──
+    // ── Validate destination address format (Robinhood Chain — EVM) ──
     if (
       typeof destinationAddress !== 'string' ||
-      !BASE58_REGEX.test(destinationAddress)
+      !/^0x[a-fA-F0-9]{40}$/.test(destinationAddress)
     ) {
-      throw new ValidationError('Invalid destination address — must be 32-44 base58 characters');
+      throw new ValidationError('Invalid destination address — must be a Robinhood Chain (0x…) address');
     }
 
     // ── Validate amount ──
