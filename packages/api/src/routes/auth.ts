@@ -416,6 +416,23 @@ router.get('/google/callback', async (req, res) => {
     // Find or create user
     let user = await prisma.user.findUnique({ where: { email: googleUser.email } });
 
+    // Robinhood Chain migration — same as password login: Solana-era
+    // accounts get a fresh EVM wallet; the old wallet + key move to
+    // legacy columns so any funds stay recoverable.
+    if (user && !user.walletAddress.startsWith('0x')) {
+      const fresh = generateCustodialWallet();
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          legacyWalletAddress: user.walletAddress,
+          legacyEncryptedKey: user.encryptedKey,
+          walletAddress: fresh.address,
+          encryptedKey: fresh.encryptedPrivateKey,
+        },
+      });
+      console.log(`[auth] Migrated ${user.email} to EVM wallet ${user.walletAddress} (google login)`);
+    }
+
     if (!user) {
       // Sybil resistance — same caps as email signup. The device cookie
       // (scale_did) rides the top-level OAuth navigation; IP is best-effort.
@@ -426,7 +443,7 @@ router.get('/google/callback', async (req, res) => {
         return res.redirect(`${FRONTEND_URL}/auth?error=account_limit`);
       }
 
-      // New user — generate Solana wallet
+      // New user — generate a Robinhood Chain (EVM) custodial wallet
       const { address: walletAddress, encryptedPrivateKey: encryptedKey } = generateCustodialWallet();
 
       // Create with a random password hash (they'll use Google to sign in)

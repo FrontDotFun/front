@@ -74,6 +74,12 @@ export function verifyWalletSignature(
 
     const token = authHeader.slice(7);
     const payload = verifyToken(token);
+    // Sessions minted before the Robinhood Chain migration carry a
+    // Solana wallet — force a fresh sign-in (which migrates the account
+    // and issues an EVM-wallet token) instead of failing downstream.
+    if (payload.wallet && !payload.wallet.startsWith('0x')) {
+      throw new AuthError('Session expired — please sign in again');
+    }
     req.userId = payload.userId;
     req.wallet = payload.wallet;
     next();
