@@ -309,9 +309,10 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '';
 // Vercel proxies /api/* to this backend, so the branded path resolves here.
 const GOOGLE_CALLBACK_URL = process.env.GOOGLE_CALLBACK_URL
   || (process.env.NODE_ENV === 'production'
-    ? 'https://www.front.fun/api/auth/google/callback'
+    ? 'https://www.scale.fun/api/auth/google/callback'
     : 'http://localhost:4001/api/auth/google/callback');
-const FRONTEND_URL = process.env.NODE_ENV === 'production' ? 'https://www.front.fun' : 'http://localhost:5173';
+const FRONTEND_URL = process.env.FRONTEND_URL
+  || (process.env.NODE_ENV === 'production' ? 'https://www.scale.fun' : 'http://localhost:5173');
 
 /** One-time auth codes: code → { token, expiresAt } */
 const authCodeStore = new Map<string, { token: string; expiresAt: number }>();
@@ -323,24 +324,18 @@ const authCodeStore = new Map<string, { token: string; expiresAt: number }>();
  * Generates a CSRF state parameter stored in a secure httpOnly cookie.
  */
 router.get('/google', (req, res) => {
-  // The CSRF state cookie must be set by the SAME host Google returns
-  // to (cookies don't cross domains). When the flow starts through the
-  // Vercel proxy (browser on www.front.fun) but the callback is on the
-  // Railway domain, the cookie would scope to www and never reach the
-  // callback → invalid_state on every attempt.
-  //
-  // The proxy hides the real browser host from us, so the frontend
-  // passes its origin as ?from=. If that differs from the callback
-  // origin, bounce ONCE to the callback host directly (absolute
-  // cross-origin 302 → browser navigates to Railway → cookie scopes
-  // there). No-op once GOOGLE_CALLBACK_URL is the branded domain.
+  // The CSRF state cookie must be set while the BROWSER is on the same
+  // host Google returns to (cookies don't cross domains). Requests can
+  // arrive here on the Railway host directly (old cached bundles) or
+  // through the Vercel proxy — and the proxy presents the destination
+  // Host, so we can never trust headers to know where the browser is.
+  // Solution: unconditionally bounce ONCE to the callback origin. After
+  // the bounce the browser's address bar IS the callback host, so the
+  // Set-Cookie on the next response scopes correctly no matter which
+  // path the request takes to reach us.
   const cbOrigin = new URL(GOOGLE_CALLBACK_URL).origin;
   if (req.query.hop !== '1') {
-    let fromOrigin = '';
-    try { fromOrigin = req.query.from ? new URL(String(req.query.from)).origin : ''; } catch { /* ignore */ }
-    if (fromOrigin && fromOrigin !== cbOrigin) {
-      return res.redirect(`${cbOrigin}/api/auth/google?hop=1`);
-    }
+    return res.redirect(`${cbOrigin}/api/auth/google?hop=1`);
   }
 
   const state = crypto.randomBytes(32).toString('hex');
